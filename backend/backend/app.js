@@ -32,22 +32,33 @@ UPLOAD_DIRS.forEach(dir => {
 // ─── 4. Init Express ──────────────────────────────────────────────────────────
 const app = express();
 
+// ─── 4a. Nonce middleware for CSP compliance ──────────────────────────────────
+app.use((req, res, next) => {
+  const { randomBytes } = require('crypto');
+  res.locals.nonce = randomBytes(16).toString('base64');
+  next();
+});
+
 // ─── 5. Security headers ──────────────────────────────────────────────────────
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc:     ["'self'"],
-      scriptSrc:      ["'self'"],
-      styleSrc:       ["'self'", "'unsafe-inline'"],  // inline styles needed for PDF/email templates
-      imgSrc:         ["'self'", 'data:', 'blob:'],
-      connectSrc:     ["'self'"],
-      fontSrc:        ["'self'"],
-      objectSrc:      ["'none'"],
-      upgradeInsecureRequests: [],
-    },
-  },
+  contentSecurityPolicy: false, // Custom CSP with nonce set below
   crossOriginEmbedderPolicy: false, // Allow embedding for PDF preview
 }));
+
+// ─── 5a. Custom CSP middleware with nonce support ──────────────────────────────
+app.use((req, res, next) => {
+  const cspHeader = [
+    `default-src 'self'`,
+    `script-src 'self' 'nonce-${res.locals.nonce}'`,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' data: blob:`,
+    `connect-src 'self'`,
+    `font-src 'self'`,
+    `object-src 'none'`,
+  ].join('; ');
+  res.setHeader('Content-Security-Policy', cspHeader);
+  next();
+});
 
 // ─── 6. CORS ──────────────────────────────────────────────────────────────────
 // CORS_ORIGINS must be set in production — wildcard '*' is dev-only
