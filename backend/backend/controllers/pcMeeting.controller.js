@@ -1,12 +1,22 @@
 const { PlanningCommitteeMeeting, PCApplication, Application } = require('../models');
 const notifService = require('../services/notification.service');
-const { success, created, notFound, error } = require('../utils/responseHelper');
+const { success, created, notFound, error, badRequest } = require('../utils/responseHelper');
 
 exports.createMeeting = async (req, res, next) => {
   try {
+    const meetingDate = req.body.meeting_date || req.body.scheduled_date;
+    if (!meetingDate) return error(res, 'meeting date is required', 400);
+
     const count = await PlanningCommitteeMeeting.count();
     const meeting_number = `PC-${new Date().getFullYear()}-${String(count + 1).padStart(3,'0')}`;
-    const meeting = await PlanningCommitteeMeeting.create({ ...req.body, meeting_number });
+    const payload = {
+      ...req.body,
+      meeting_date: meetingDate,
+      meeting_number,
+    };
+    delete payload.scheduled_date;
+
+    const meeting = await PlanningCommitteeMeeting.create(payload);
     // Notify UDA officer of scheduled meeting
     setImmediate(async () => {
       try {
@@ -73,11 +83,21 @@ exports.updateAgenda = async (req, res, next) => {
 exports.addToAgenda = async (req, res, next) => {
   try {
     const { reference_number, application_id } = req.body;
+    if (!application_id) return badRequest(res, 'application_id is required');
+
+    const app = await Application.findByPk(application_id, {
+      attributes: ['application_id', 'reference_number'],
+    });
+    if (!app) return notFound(res, 'Application not found');
+
+    const resolvedRef = reference_number || app.reference_number;
+    if (!resolvedRef) return badRequest(res, 'reference_number is required');
+
     const existing = await PCApplication.findOne({ where: { meeting_id: req.params.id, application_id } });
     if (existing) return error(res, 'Application already in this meeting agenda', 409);
     const count = await PCApplication.count({ where: { meeting_id: req.params.id } });
     const pcApp = await PCApplication.create({
-      meeting_id: req.params.id, application_id, reference_number,
+      meeting_id: req.params.id, application_id, reference_number: resolvedRef,
       presentation_order: count + 1, added_by: req.user.user_id, status: 'PENDING',
     });
     return created(res, pcApp);

@@ -17,14 +17,62 @@ const { sign, verify }  = require('../utils/digitalSignature');
 const notifService      = require('../services/notification.service');
 const { success, created, notFound, badRequest, forbidden, error } = require('../utils/responseHelper');
 
+const isValidSigningOtp = (storedOtpCode, inputOtp) => {
+  if (!storedOtpCode) return false;
+  const crypto = require('node:crypto');
+  const normalizedInput = String(inputOtp || '').trim();
+  const hashedInput = crypto.createHash('sha256').update(normalizedInput).digest('hex');
+
+  // Preferred path: stored value is SHA-256 hash (64 hex chars)
+  const safeHexEqual = (a, b) => {
+    try {
+      return crypto.timingSafeEqual(Buffer.from(String(a), 'hex'), Buffer.from(String(b), 'hex'));
+    } catch {
+      return false;
+    }
+  };
+
+  if (String(storedOtpCode).length >= 64 && safeHexEqual(storedOtpCode, hashedInput)) {
+    return true;
+  }
+
+  // Legacy fallback: older records may contain plaintext 4-digit OTP
+  return String(storedOtpCode).trim() === normalizedInput;
+};
+
 exports.generateCertificate = async (req, res, next) => {
   try {
     const { reference_number, application_id, decision_id, conditions, approval_date, expiry_date } = req.body;
+
+    // decision_id is required by DB schema. If frontend doesn't send it,
+    // resolve the latest approving decision for this application/reference.
+    let resolvedDecisionId = decision_id;
+    if (!resolvedDecisionId) {
+      const where = {};
+      if (application_id) where.application_id = application_id;
+      if (reference_number) where.reference_number = reference_number;
+
+      const latestDecision = await Decision.findOne({
+        where,
+        order: [['decided_at', 'DESC'], ['created_at', 'DESC']],
+      });
+
+      if (!latestDecision) {
+        return badRequest(res, 'No decision found for this application. Submit a PC decision before generating certificate.');
+      }
+
+      if (!['APPROVED', 'CONDITIONALLY_APPROVED'].includes(latestDecision.decision_type)) {
+        return badRequest(res, `Cannot generate certificate for decision type: ${latestDecision.decision_type}`);
+      }
+
+      resolvedDecisionId = latestDecision.decision_id;
+    }
+
     const certData = await certService.generateApprovalCertificate({
       reference_number, application_id, conditions, approval_date, expiry_date,
     });
     const cert = await ApprovalCertificate.create({
-      reference_number, application_id, decision_id,
+      reference_number, application_id, decision_id: resolvedDecisionId,
       certificate_number:  certData.certNumber,
       verification_code:   certData.verificationCode,
       qr_code_path:        certData.qrPath,
@@ -92,11 +140,7 @@ exports.applyDigitalSignature = async (req, res, next) => {
     const chairman = await User.findByPk(req.user.user_id);
     if (!chairman) return forbidden(res, 'Chairman user not found');
 
-    const crypto = require('crypto');
-    // otp_code in DB is now a SHA-256 hash — hash the incoming code for comparison
-    const hashedInput = crypto.createHash('sha256').update(String(otp_code).trim()).digest('hex');
-    const safeEqual = (a, b) => { try { return crypto.timingSafeEqual(Buffer.from(String(a)), Buffer.from(String(b))); } catch { return false; } };
-    if (!chairman.otp_code || !safeEqual(chairman.otp_code, hashedInput)) {
+    if (!isValidSigningOtp(chairman.otp_code, otp_code)) {
       return forbidden(res, 'Invalid OTP code');
     }
     if (!chairman.otp_expires_at || new Date() > new Date(chairman.otp_expires_at)) {
@@ -240,14 +284,7 @@ exports.batchSign = async (req, res, next) => {
     const chairman = await User.findByPk(req.user.user_id);
     if (!chairman) return forbidden(res, 'Chairman user not found');
 
-    const crypto = require('crypto');
-    const hashedInput = crypto.createHash('sha256').update(String(otp_code).trim()).digest('hex');
-    const safeEqual = (a, b) => {
-      try { return crypto.timingSafeEqual(Buffer.from(String(a)), Buffer.from(String(b))); }
-      catch { return false; }
-    };
-
-    if (!chairman.otp_code || !safeEqual(chairman.otp_code, hashedInput)) {
+    if (!isValidSigningOtp(chairman.otp_code, otp_code)) {
       return forbidden(res, 'Invalid OTP code');
     }
     if (!chairman.otp_expires_at || new Date() > new Date(chairman.otp_expires_at)) {

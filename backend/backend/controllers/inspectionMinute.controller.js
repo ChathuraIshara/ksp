@@ -1,4 +1,4 @@
-const { InspectionMinute, Fine, Application, Inspection, TaskAssignment } = require('../models');
+const { InspectionMinute, Fine, Application, Inspection, TaskAssignment, Officer, User } = require('../models');
 const { Op } = require('sequelize');
 const fineService = require('../services/fineCalculator.service');
 const feeService  = require('../services/feeCalculator.service');
@@ -295,8 +295,10 @@ exports.editSubmittedMinute = async (req, res, next) => {
   try {
     const m = await InspectionMinute.findByPk(req.params.id);
     if (!m) return notFound(res, 'Inspection minute not found');
-    if (m.is_immutable) return require('../utils/responseHelper').forbidden(res, 'This minute is permanently locked and cannot be edited');
     if (m.status === 'DRAFT') return badRequest(res, 'Use /save-draft for DRAFT minutes');
+    if (!['SUBMITTED', 'LOCKED'].includes(m.status)) {
+      return badRequest(res, `Minute with status '${m.status}' cannot be amended`);
+    }
 
     // Editable fields for post-submission amendment
     const EDITABLE = [
@@ -365,6 +367,75 @@ exports.editSubmittedMinute = async (req, res, next) => {
       if (req.body[key] !== undefined) safe[key] = req.body[key];
     }
     await m.update(safe);
+
+    // Re-queue to SW Pending Reviews after amendment.
+    // SW dashboard reads active SW_REVIEW tasks assigned to the calling SW officer.
+    try {
+      const app = await Application.findOne({
+        where: { reference_number: m.reference_number },
+        attributes: ['application_id', 'reference_number'],
+      });
+
+      if (app) {
+        // Prefer reusing an existing active SW_REVIEW task.
+        const existingActiveSWTask = await TaskAssignment.findOne({
+          where: {
+            application_id: app.application_id,
+            task_type: 'SW_REVIEW',
+            status: { [Op.in]: ['PENDING', 'IN_PROGRESS'] },
+          },
+          order: [['created_at', 'DESC']],
+        });
+
+        if (!existingActiveSWTask) {
+          // Resolve the most relevant SW officer from the TO assignment lineage.
+          const latestToTask = await TaskAssignment.findOne({
+            where: {
+              application_id: app.application_id,
+              task_type: { [Op.in]: ['TO_INSPECTION', 'SUPPLEMENTARY_INSPECTION'] },
+            },
+            order: [['created_at', 'DESC']],
+          });
+
+          let swOfficerId = null;
+          if (latestToTask?.assigned_by) {
+            const swOfficer = await Officer.findOne({
+              where: { user_id: latestToTask.assigned_by },
+              attributes: ['officer_id'],
+            });
+            swOfficerId = swOfficer?.officer_id || null;
+          }
+
+          // Fallback: pick any active SW officer if lineage cannot be resolved.
+          if (!swOfficerId) {
+            const fallbackSW = await Officer.findOne({
+              include: [{ model: User, attributes: [], where: { role: 'SW' }, required: true }],
+              where: { is_active: true },
+              attributes: ['officer_id'],
+              order: [['created_at', 'ASC']],
+            });
+            swOfficerId = fallbackSW?.officer_id || null;
+          }
+
+          if (swOfficerId) {
+            const snapshot = await Officer.findByPk(swOfficerId, { attributes: ['officer_id', 'full_name'] });
+            await TaskAssignment.create({
+              reference_number: app.reference_number,
+              application_id: app.application_id,
+              assigned_to: swOfficerId,
+              assigned_by: req.user.user_id,
+              task_type: 'SW_REVIEW',
+              status: 'PENDING',
+              assignment_note: 'TO amended inspection minute — requires SW re-review',
+              to_workload_snapshot: snapshot,
+            });
+          }
+        }
+      }
+    } catch (queueErr) {
+      console.error('[MINUTE EDIT] Failed to queue SW review task:', queueErr.message);
+      // Non-fatal: amendment itself succeeded.
+    }
 
     return success(res, m, 'Minute updated. Previous version recorded in tracking line.');
   } catch (err) { next(err); }

@@ -489,6 +489,7 @@ export const CertificatesPage: React.FC = () => {
 
 const CertificateCard: React.FC<{ app: any }> = ({ app }) => {
   const { show: toast } = useToast()
+  const [downloading, setDownloading] = useState(false)
   const { data: certData } = useQuery(
     ['cert', app.reference_number],
     () => certApi.getByRef(app.reference_number),
@@ -501,6 +502,31 @@ const CertificateCard: React.FC<{ app: any }> = ({ app }) => {
   )
   const cert    = certData?.data?.data ?? certData?.data
   const corCert = corCertData?.data?.data ?? corCertData?.data
+
+  const handleDownloadApprovalPdf = async () => {
+    if (!cert?.is_issued) return
+    setDownloading(true)
+    try {
+      const res = await certApi.download(app.reference_number)
+      const pdfPath: string = res.data?.data?.pdf_path ?? res.data?.pdf_path
+      if (!pdfPath) {
+        toast('Approval PDF is not available yet.', 'error')
+        return
+      }
+
+      const link = document.createElement('a')
+      link.href = pdfPath
+      link.download = `${cert?.certificate_number ?? app.reference_number}.pdf`
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (e) {
+      toast(getErrorMsg(e), 'error')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div className="card p-5">
@@ -525,17 +551,15 @@ const CertificateCard: React.FC<{ app: any }> = ({ app }) => {
               {cert.certificate_number && (
                 <div className="text-xs text-slate-600">No: <span className="font-mono font-bold">{cert.certificate_number}</span></div>
               )}
+              {cert.pdf_path && (
+                <div className="text-[11px] text-slate-400 break-all">PDF: {cert.pdf_path}</div>
+              )}
               {cert.is_issued ? (
                 <>
                   <span className="badge-green text-xs">✓ Issued {fmt.date(cert.issued_at)}</span>
                   <div className="flex gap-2 mt-2">
-                    <Button variant="success" size="sm" onClick={async () => {
-                      try {
-                        await certApi.print(cert.certificate_id)
-                        toast('Certificate print request sent.', 'success')
-                      } catch (e) { toast(getErrorMsg(e), 'error') }
-                    }}>
-                      ⬇️ Download
+                    <Button variant="success" size="sm" onClick={handleDownloadApprovalPdf} loading={downloading}>
+                      ⬇️ Download PDF
                     </Button>
                   </div>
                 </>
@@ -1140,6 +1164,7 @@ export const MessagesPageFull: React.FC = () => {
   const [recipient, setRecipient]   = useState<any>(null)
   const [subject, setSubject]       = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const getRecipientUserId = (r: any) => r?.user_id || r?.User?.user_id || null
 
   // FR-07: Join the active conversation's Socket.io room for real-time messages
   useRealtimeMessage(activeConv?.conversation_id ?? null)
@@ -1162,13 +1187,18 @@ export const MessagesPageFull: React.FC = () => {
     { enabled: newConvOpen }
   )
   const officers: any[] = (officersData?.data?.data ?? officersData?.data ?? [])
-    .filter((o: any) => o.User?.user_id !== user?.user_id)
+    .filter((o: any) => getRecipientUserId(o) !== user?.user_id)
 
   const sendMsg = async () => {
     if (!msg.trim() || !activeConv) return
+    if (!activeConv.peer_user_id) {
+      toast('This is a legacy conversation without recipient mapping. Please start a new conversation.', 'error')
+      return
+    }
     try {
       await messageApi.send({
         conversation_id: activeConv.conversation_id,
+        recipient_id: activeConv.peer_user_id,
         body: msg.trim(),
         message_type: 'TEXT',
       })
@@ -1180,9 +1210,14 @@ export const MessagesPageFull: React.FC = () => {
 
   const startConversation = async () => {
     if (!recipient) { toast('Select a recipient', 'error'); return }
+    const recipientUserId = getRecipientUserId(recipient)
+    if (!recipientUserId) {
+      toast('Selected recipient has no user account ID', 'error')
+      return
+    }
     try {
       const res = await messageApi.startConv({
-        recipient_id:     recipient.User?.user_id,
+        recipient_id:     recipientUserId,
         subject:          subject || `Message from ${user?.full_name ?? user?.role}`,
         conversation_type:'DIRECT',
       })

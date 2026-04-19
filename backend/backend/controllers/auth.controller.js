@@ -453,10 +453,37 @@ exports.generateOTP = async (req, res, next) => {
     const crypto = require('crypto');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
-    await User.update(
-      { otp_code: hashedCode, otp_expires_at: expiresAt },
-      { where: { email: req.user.email } }
-    );
+    try {
+      await User.update(
+        { otp_code: hashedCode, otp_expires_at: expiresAt },
+        { where: { email: req.user.email } }
+      );
+
+      // Some legacy MySQL setups truncate silently when column is too short
+      // (e.g., otp_code VARCHAR(10)). Verify persisted value to avoid false
+      // "Invalid OTP" errors during signing.
+      const persisted = await User.findOne({ where: { email: req.user.email }, attributes: ['otp_code'] });
+      if (!persisted || String(persisted.otp_code || '') !== hashedCode) {
+        await User.sequelize.query("ALTER TABLE users MODIFY otp_code VARCHAR(128) NULL");
+        await User.update(
+          { otp_code: hashedCode, otp_expires_at: expiresAt },
+          { where: { email: req.user.email } }
+        );
+      }
+    } catch (dbErr) {
+      const msg = dbErr?.parent?.message || dbErr?.message || '';
+      // Backward-compat fix: older DBs may still have users.otp_code as VARCHAR(10)
+      // while we now store SHA-256 hex (64 chars).
+      if (/Data too long for column 'otp_code'/i.test(msg)) {
+        await User.sequelize.query("ALTER TABLE users MODIFY otp_code VARCHAR(128) NULL");
+        await User.update(
+          { otp_code: hashedCode, otp_expires_at: expiresAt },
+          { where: { email: req.user.email } }
+        );
+      } else {
+        throw dbErr;
+      }
+    }
 
     try {
       await sendMail({
@@ -491,7 +518,6 @@ exports.refreshToken = async (req, res, next) => {
     // Rotate refresh token on every use — old token is immediately invalidated.
     // This means a stolen refresh token can only be used once before it becomes invalid.
     const newRefreshTkn  = signRefreshToken({ user_id: user.user_id, email: user.email, role: user.role, applicant_id });
-    const newRefreshHash = crypto.createHash('sha256').update(newRefreshTkn).digest('hex');
     return res.json({
       message:      'Token refreshed',
       token,

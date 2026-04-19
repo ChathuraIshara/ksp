@@ -15,7 +15,11 @@ const TODashboard: React.FC = () => {
   const [tab, setTab] = useState('pending')
   const [searchOpen, setSearchOpen] = useState(false)
 
-  const { data: officerData } = useQuery('my-officer', () => officerApi.list({ user_id: user?.user_id }))
+  const { data: officerData } = useQuery(
+    ['my-officer', user?.user_id],
+    () => officerApi.list({ user_id: user?.user_id }),
+    { enabled: !!user?.user_id }
+  )
   const myOfficerId = officerData?.data?.data?.[0]?.officer_id ?? officerData?.data?.[0]?.officer_id
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery(
@@ -169,7 +173,6 @@ const ScheduleModal: React.FC<{
       })
       const inspId = inspRes.data?.data?.inspection_id ?? inspRes.data?.inspection_id
       await inspectionApi.schedule(inspId, scheduledDateTime)
-      await applicationApi.updateStatus(task.reference_number, 'INSPECTION_SCHEDULED')
       toast('Inspection scheduled. Applicant notified.', 'success')
       onRefresh()
       onClose()
@@ -802,12 +805,37 @@ const CompletedSection: React.FC<{ inspections: any[]; toast: Function }> = ({ i
     if (!editTarget || !editContent.trim()) return
     setEditLoading(true)
     try {
+      let minuteId =
+        editTarget.minute_id ??
+        editTarget.InspectionMinute?.minute_id ??
+        editTarget.inspectionMinute?.minute_id ??
+        null
+
+      // Fallback: completed inspection rows may not include minute_id directly.
+      // Resolve it by reference number and matching inspection_id.
+      if (!minuteId && editTarget.reference_number) {
+        const minuteRes = await inspectionMinuteApi.getByRef(editTarget.reference_number)
+        const minutes: any[] = minuteRes?.data?.data ?? minuteRes?.data ?? []
+
+        const exact = minutes.find((m: any) => m.inspection_id === editTarget.inspection_id)
+        if (exact?.minute_id) {
+          minuteId = exact.minute_id
+        } else if (minutes.length) {
+          const latest = [...minutes].sort((a: any, b: any) => {
+            const ta = new Date(a?.submitted_at ?? a?.updated_at ?? a?.created_at ?? 0).getTime()
+            const tb = new Date(b?.submitted_at ?? b?.updated_at ?? b?.created_at ?? 0).getTime()
+            return tb - ta
+          })[0]
+          minuteId = latest?.minute_id ?? null
+        }
+      }
+
       // Use PUT /inspection-minutes/:id/edit-submitted
       // This snapshots the previous field values into a MINUTE_EDITED tracking node
       // before overwriting, so the diff is visible when extracting the TO node.
       // editTarget.minute_id comes from the inspection's linked InspectionMinute record.
-      if (editTarget.minute_id) {
-        await inspectionMinuteApi.editSubmitted(editTarget.minute_id, {
+      if (minuteId) {
+        await inspectionMinuteApi.editSubmitted(minuteId, {
           to_remarks:              editContent,
           to_recommendation:       editContent,
           compliance_observations: editContent,

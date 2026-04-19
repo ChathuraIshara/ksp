@@ -265,9 +265,13 @@ validate.schemas = {
 
   // Message / Negotiation
   sendMessage: {
-    reference_number: 'string|required',
-    content:          'string|required|min:1|max:5000',
-    conversation_type:'string|required|enum:TO_APPLICANT,SW_TO_CLARIFICATION,RDA_AGREEMENT_NEGOTIATION,COR_SCHEDULING',
+    reference_number:  'string',
+    conversation_id:   'string|uuid',
+    recipient_id:      'string|uuid',
+    content:           'string|min:1|max:5000',
+    body:              'string|min:1|max:5000',
+    conversation_type: 'string|enum:TO_APPLICANT,SW_TO_CLARIFICATION,RDA_AGREEMENT_NEGOTIATION,COR_SCHEDULING',
+    message_type:      'string',
   },
 
   // Fine
@@ -310,7 +314,8 @@ validate.schemas = {
 
   // PC meeting
   createMeeting: {
-    meeting_date: 'string|required',
+    meeting_date: 'string',
+    scheduled_date: 'string',
   },
 
   // Agreement

@@ -34,7 +34,7 @@ export const ExternalOfficerDashboard: React.FC = () => {
     reference_number: ea.reference_number,
     sub_plan_type: ea.Application?.sub_plan_type ?? ea.Application?.proposed_use,
     proposed_use: ea.Application?.proposed_use,
-    external_approval_id: ea.external_approval_id,
+    external_approval_id: ea.external_approval_id ?? ea.approval_id,
   }))
 
   return (
@@ -43,7 +43,7 @@ export const ExternalOfficerDashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{ROLE_LABEL[user?.role ?? 'HO']} Dashboard</h1>
-          <p className="text-slate-500 text-sm">External Officer — Planning Review</p>
+          <p className="text-sm text-slate-500">External Officer — Planning Review</p>
         </div>
         <Button variant="secondary" size="sm" onClick={() => window.open('/app/pc-meeting', '_self')}>🏛️ PC Meeting</Button>
       </div>
@@ -54,12 +54,12 @@ export const ExternalOfficerDashboard: React.FC = () => {
           <EmptyState title="No applications assigned" icon={<span className="text-5xl">📋</span>} />
         )}
         {apps.map(app => (
-          <div key={app.application_id} className="card p-5 border-l-4 border-l-ps-500">
+          <div key={app.application_id} className="p-5 border-l-4 card border-l-ps-500">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="font-bold text-ps-800 font-mono text-sm">{app.reference_number}</span>
+                <span className="font-mono text-sm font-bold text-ps-800">{app.reference_number}</span>
                 <div className="text-sm text-slate-600 mt-0.5">{app.sub_plan_type ?? app.proposed_use}</div>
-                <div className="text-xs text-slate-400 mt-1">Assigned: {fmt.relative(app.updated_at)}</div>
+                <div className="mt-1 text-xs text-slate-400">Assigned: {fmt.relative(app.updated_at)}</div>
               </div>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setSelected(app)}>🔍 View Details</Button>
@@ -74,7 +74,11 @@ export const ExternalOfficerDashboard: React.FC = () => {
 
       {selected && (
         <Modal open={!!selected && !submitOpen} onClose={() => setSelected(null)} title={`Application: ${selected.reference_number}`} size="xl">
-          <TrackingLine referenceNumber={selected.reference_number} isOfficerView />
+          <TrackingLine
+            referenceNumber={selected.reference_number}
+            applicationId={selected.application_id}
+            isOfficerView
+          />
         </Modal>
       )}
 
@@ -147,7 +151,7 @@ const ExternalMinuteModal: React.FC<{
           </div>
         </Field>
         <Field label="Assessment Details" required>
-          <textarea className="form-input resize-none" rows={6} value={content} onChange={e => setContent(e.target.value)}
+          <textarea className="resize-none form-input" rows={6} value={content} onChange={e => setContent(e.target.value)}
             placeholder="Provide detailed assessment and any conditions or recommendations..." />
         </Field>
         <div className="flex justify-end gap-3">
@@ -169,6 +173,8 @@ export const PCMeetingDashboard: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false)
   const [addAppOpen, setAddAppOpen] = useState(false)
   const [activeMeeting, setActiveMeeting] = useState<any>(null)
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  const [rescheduleMeeting, setRescheduleMeeting] = useState<any>(null)
   const [selected, setSelected] = useState<any>(null)
 
   const { data, isLoading } = useQuery('pc-meetings', pcMeetingApi.list)
@@ -178,21 +184,27 @@ export const PCMeetingDashboard: React.FC = () => {
   const completed = meetings.filter(m => m.status === 'COMPLETED')
   const [tab, setTab] = useState('upcoming')
 
+  const getAgendaItems = (meeting: any): any[] => (
+    meeting?.applications ?? meeting?.PCApplications ?? meeting?.agenda ?? []
+  )
+
   return (
     <div className="space-y-6 animate-fade-in">
       <ToastContainer />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Planning Committee Meetings</h1>
-          <p className="text-slate-500 text-sm">All PC meeting members can view and submit minutes here</p>
+          <p className="text-sm text-slate-500">All PC meeting members can view and submit minutes here</p>
         </div>
-        {(user?.role === 'CHAIRMAN' || user?.role === 'SW') && (
+        {(user?.role === 'CHAIRMAN' || user?.role === 'SW' || user?.role === 'PSO' || user?.role === 'ADMIN') && (
           <div className="flex gap-2">
-          {(user?.role === 'SW' || user?.role === 'PSO' || user?.role === 'ADMIN') && (
-            <Button variant="secondary" size="sm" onClick={() => setAddAppOpen(true)}>+ Add to Agenda</Button>
-          )}
-          <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>+ Schedule Meeting</Button>
-        </div>
+            {(user?.role === 'SW' || user?.role === 'PSO' || user?.role === 'ADMIN') && (
+              <Button variant="secondary" size="sm" onClick={() => setAddAppOpen(true)}>+ Add to Agenda</Button>
+            )}
+            {(user?.role === 'CHAIRMAN' || user?.role === 'SW' || user?.role === 'ADMIN') && (
+              <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>+ Schedule Meeting</Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -202,18 +214,25 @@ export const PCMeetingDashboard: React.FC = () => {
       ]} active={tab} onChange={setTab} />
 
       <div className="grid gap-4">
-        {isLoading && <Spinner className="text-ps-600 mx-auto mt-8" size="lg" />}
+        {isLoading && <Spinner className="mx-auto mt-8 text-ps-600" size="lg" />}
         {(tab === 'upcoming' ? upcoming : completed).map(m => (
-          <div key={m.meeting_id} className="card p-5">
+          <div key={m.meeting_id} className="p-5 card">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="font-bold text-slate-900">{m.title ?? `Meeting #${m.meeting_id.slice(0, 6)}`}</div>
-                <div className="text-sm text-slate-500 mt-1">📅 {fmt.date(m.scheduled_date)} · {m.venue ?? 'KPS Board Room'}</div>
-                <div className="text-xs text-slate-400 mt-1">{m.agenda?.length ?? 0} applications on agenda</div>
+                <div className="mt-1 text-sm text-slate-500">📅 {fmt.date(m.meeting_date ?? m.scheduled_date)} · {m.venue ?? 'KPS Board Room'}</div>
+                <div className="mt-1 text-xs text-slate-400">{getAgendaItems(m).length} applications on agenda</div>
               </div>
-              <Button variant="secondary" size="sm" onClick={() => setSelected(m)}>
-                View Agenda
-              </Button>
+              <div className="flex items-center gap-2">
+                {(user?.role === 'SW' || user?.role === 'CHAIRMAN' || user?.role === 'ADMIN') && (
+                  <Button variant="secondary" size="sm" onClick={() => { setRescheduleMeeting(m); setRescheduleOpen(true) }}>
+                    Reschedule
+                  </Button>
+                )}
+                <Button variant="secondary" size="sm" onClick={() => setSelected(m)}>
+                  View Agenda
+                </Button>
+              </div>
             </div>
           </div>
         ))}
@@ -235,7 +254,65 @@ export const PCMeetingDashboard: React.FC = () => {
         toast={toast}
         onRefresh={() => qc.invalidateQueries('pc-meetings')}
       />
+
+      <RescheduleMeetingModal
+        open={rescheduleOpen}
+        meeting={rescheduleMeeting}
+        onClose={() => { setRescheduleOpen(false); setRescheduleMeeting(null) }}
+        toast={toast}
+        onRefresh={() => qc.invalidateQueries('pc-meetings')}
+      />
     </div>
+  )
+}
+
+const RescheduleMeetingModal: React.FC<{ open: boolean; meeting: any; onClose: () => void; toast: Function; onRefresh: () => void }> = ({
+  open, meeting, onClose, toast, onRefresh
+}) => {
+  const [title, setTitle] = useState('')
+  const [venue, setVenue] = useState('')
+  const [date, setDate] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  React.useEffect(() => {
+    if (!meeting) return
+    setTitle(meeting.title ?? '')
+    setVenue(meeting.venue ?? 'KPS Board Room')
+    setDate((meeting.meeting_date ?? meeting.scheduled_date ?? '').split?.('T')?.[0] ?? '')
+  }, [meeting])
+
+  const handleSave = async () => {
+    if (!meeting?.meeting_id) return
+    if (!date) { toast('Select a new meeting date', 'error'); return }
+    setLoading(true)
+    try {
+      await pcMeetingApi.updateMeeting(meeting.meeting_id, {
+        title: title || meeting.title,
+        meeting_date: date,
+        venue,
+      })
+      toast('Meeting rescheduled.', 'success')
+      onRefresh()
+      onClose()
+    } catch (e) {
+      toast(getErrorMsg(e), 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Reschedule PC Meeting" size="sm">
+      <div className="space-y-4">
+        <Field label="Meeting Title"><input className="form-input" value={title} onChange={e => setTitle(e.target.value)} /></Field>
+        <Field label="New Date" required><input className="form-input" type="date" value={date} onChange={e => setDate(e.target.value)} /></Field>
+        <Field label="Venue"><input className="form-input" value={venue} onChange={e => setVenue(e.target.value)} /></Field>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={handleSave} loading={loading}>Save Changes</Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -250,7 +327,7 @@ const PCMeetingDetail: React.FC<{ meeting: any; onClose: () => void; toast: Func
 
   const { data: meetingDetail } = useQuery(['pc-meeting', meeting.meeting_id], () => pcMeetingApi.getById(meeting.meeting_id))
   const detail = meetingDetail?.data?.data ?? meetingDetail?.data
-  const applications: any[] = detail?.applications ?? []
+  const applications: any[] = detail?.applications ?? detail?.PCApplications ?? []
 
   const submitMinute = async () => {
     if (!selectedApp || !minuteContent.trim()) return
@@ -258,20 +335,14 @@ const PCMeetingDetail: React.FC<{ meeting: any; onClose: () => void; toast: Func
     try {
       await pcMeetingApi.addMinute(meeting.meeting_id, selectedApp.application_id, { content: minuteContent })
       if (decision && (user?.role === 'CHAIRMAN' || user?.role === 'SW')) {
-        // Use decisionApi.create to properly record PC decision with audit trail
-        try {
-          await decisionApi.create({
-            reference_number: selectedApp.reference_number,
-            application_id:   selectedApp.application_id,
-            meeting_id:       meeting.meeting_id,
-            decision_type:    decision,
-            decided_by:       user?.user_id,
-            decided_at:       new Date().toISOString(),
-          })
-        } catch {
-          // Fallback: direct status update if decision model fails
-          await applicationApi.updateStatus(selectedApp.reference_number, decision as string)
-        }
+        await decisionApi.create({
+          reference_number: selectedApp.reference_number,
+          application_id:   selectedApp.application_id,
+          meeting_id:       meeting.meeting_id,
+          decision_type:    decision,
+          decided_by:       user?.user_id,
+          decided_at:       new Date().toISOString(),
+        })
       }
       toast('PC meeting minute submitted.', 'success')
       setMinuteContent('')
@@ -283,18 +354,18 @@ const PCMeetingDetail: React.FC<{ meeting: any; onClose: () => void; toast: Func
   }
 
   return (
-    <Modal open title={`PC Meeting — ${fmt.date(meeting.scheduled_date)}`} onClose={onClose} size="xl">
-      <div className="grid sm:grid-cols-2 gap-6">
+    <Modal open title={`PC Meeting — ${fmt.date(meeting.meeting_date ?? meeting.scheduled_date)}`} onClose={onClose} size="xl">
+      <div className="grid gap-6 sm:grid-cols-2">
         <div>
-          <h3 className="font-bold text-slate-700 mb-3 text-sm">Agenda Applications ({applications.length})</h3>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <h3 className="mb-3 text-sm font-bold text-slate-700">Agenda Applications ({applications.length})</h3>
+          <div className="space-y-2 overflow-y-auto max-h-64">
             {applications.map((app: any) => (
               <button key={app.application_id || app.pc_application_id}
                 onClick={() => setSelectedApp(app)}
                 className={cx('w-full text-left p-3 rounded-xl border transition-all hover:border-ps-300',
                   selectedApp?.application_id === app.application_id ? 'border-ps-500 bg-ps-50' : 'border-slate-200'
                 )}>
-                <span className="font-mono font-bold text-sm text-ps-700">{app.reference_number}</span>
+                <span className="font-mono text-sm font-bold text-ps-700">{app.reference_number}</span>
                 <div className="text-xs text-slate-500 mt-0.5">{app.sub_plan_type ?? app.proposed_use}</div>
               </button>
             ))}
@@ -305,10 +376,10 @@ const PCMeetingDetail: React.FC<{ meeting: any; onClose: () => void; toast: Func
         <div className="space-y-4">
           {selectedApp ? (
             <>
-              <h3 className="font-bold text-slate-700 text-sm">Submit Minute for {selectedApp.reference_number}</h3>
+              <h3 className="text-sm font-bold text-slate-700">Submit Minute for {selectedApp.reference_number}</h3>
               <TrackingLine referenceNumber={selectedApp.reference_number} isOfficerView compact />
               <Field label="Your Minute">
-                <textarea className="form-input resize-none" rows={4} value={minuteContent} onChange={e => setMinuteContent(e.target.value)} placeholder="Add your minute on this application..." />
+                <textarea className="resize-none form-input" rows={4} value={minuteContent} onChange={e => setMinuteContent(e.target.value)} placeholder="Add your minute on this application..." />
               </Field>
               {(user?.role === 'CHAIRMAN' || user?.role === 'SW') && (
                 <Field label="Decision (Chairman/SW only)">
@@ -322,12 +393,12 @@ const PCMeetingDetail: React.FC<{ meeting: any; onClose: () => void; toast: Func
                   </select>
                 </Field>
               )}
-              <Button variant="primary" onClick={submitMinute} loading={loading} disabled={!minuteContent.trim()} className="w-full justify-center">
+              <Button variant="primary" onClick={submitMinute} loading={loading} disabled={!minuteContent.trim()} className="justify-center w-full">
                 Submit Minute
               </Button>
             </>
           ) : (
-            <div className="flex items-center justify-center h-48 text-slate-400 text-sm">
+            <div className="flex items-center justify-center h-48 text-sm text-slate-400">
               Select an application to add your minute
             </div>
           )}
@@ -426,12 +497,12 @@ const AddToAgendaModal: React.FC<{ open: boolean; onClose: () => void; toast: Fu
             <option value="">— Select a meeting —</option>
             {meetings.map((m: any) => (
               <option key={m.meeting_id} value={m.meeting_id}>
-                {m.title ?? `Meeting #${m.meeting_id.slice(0, 6)}`} — {fmt.date(m.scheduled_date)}
+                {m.title ?? `Meeting #${m.meeting_id.slice(0, 6)}`} — {fmt.date(m.meeting_date ?? m.scheduled_date)}
               </option>
             ))}
           </select>
           {meetings.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">No upcoming meetings found. Schedule a meeting first.</p>
+            <p className="mt-1 text-xs text-amber-600">No upcoming meetings found. Schedule a meeting first.</p>
           )}
         </Field>
 
@@ -445,7 +516,7 @@ const AddToAgendaModal: React.FC<{ open: boolean; onClose: () => void; toast: Fu
             ))}
           </select>
           {apps.length === 0 && (
-            <p className="text-xs text-slate-400 mt-1">No applications awaiting PC review.</p>
+            <p className="mt-1 text-xs text-slate-400">No applications awaiting PC review.</p>
           )}
         </Field>
 
@@ -559,7 +630,7 @@ export const ChairmanDashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Chairman Dashboard</h1>
-          <p className="text-slate-500 text-sm">Certificate Approval and Digital Signing</p>
+          <p className="text-sm text-slate-500">Certificate Approval and Digital Signing</p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={() => window.open('/app/pc-meeting', '_self')}>🏛️ PC Meeting</Button>
@@ -575,7 +646,7 @@ export const ChairmanDashboard: React.FC = () => {
         ].map(s => (
           <div key={s.label} className={cx('rounded-xl border-2 p-5', s.color)}>
             <div className="text-3xl font-bold">{s.count}</div>
-            <div className="text-sm font-semibold mt-1">{s.label}</div>
+            <div className="mt-1 text-sm font-semibold">{s.label}</div>
           </div>
         ))}
       </div>
@@ -590,7 +661,7 @@ export const ChairmanDashboard: React.FC = () => {
       {/* FR14: Generate approval certificate for PC-approved applications */}
       {tab === 'generate' && (
         <div className="space-y-4">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+          <div className="p-3 text-sm text-blue-800 border border-blue-200 bg-blue-50 rounded-xl">
             💡 These applications have been approved at the PC meeting. Generate their approval certificates here,
             then sign them from the <strong>Pending Signatures</strong> tab.
           </div>
@@ -598,11 +669,11 @@ export const ChairmanDashboard: React.FC = () => {
             <EmptyState title="No applications awaiting certificate generation" icon={<span className="text-5xl">📜</span>} />
           )}
           {approvedApps.map((app: any) => (
-            <div key={app.application_id} className="card p-5 border-l-4 border-l-ps-500">
+            <div key={app.application_id} className="p-5 border-l-4 card border-l-ps-500">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <span className="font-bold text-ps-800 font-mono text-sm">{app.reference_number}</span>
-                  <div className="text-sm text-slate-500 mt-1">
+                  <span className="font-mono text-sm font-bold text-ps-800">{app.reference_number}</span>
+                  <div className="mt-1 text-sm text-slate-500">
                     {app.sub_plan_type ?? app.proposed_use} · Approved: {fmt.date(app.approval_date)}
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5">
@@ -646,9 +717,9 @@ export const ChairmanDashboard: React.FC = () => {
             </Alert>
           )}
           {signingIds.length > 0 && (
-            <div className="flex items-center justify-between p-4 bg-ps-50 rounded-xl border border-ps-200">
+            <div className="flex items-center justify-between p-4 border bg-ps-50 rounded-xl border-ps-200">
               <div>
-                <span className="text-ps-700 font-semibold">{signingIds.length} certificate(s) selected</span>
+                <span className="font-semibold text-ps-700">{signingIds.length} certificate(s) selected</span>
                 <div className="text-xs text-slate-500 mt-0.5">
                   Review each certificate using the 🔍 button before signing
                 </div>
@@ -681,10 +752,10 @@ export const ChairmanDashboard: React.FC = () => {
       {tab === 'certs' && (
         <div className="grid gap-4">
           {issued.map(cert => (
-            <div key={cert.certificate_id} className="card p-4 flex items-center justify-between">
+            <div key={cert.certificate_id} className="flex items-center justify-between p-4 card">
               <div>
-                <span className="font-mono font-bold text-sm text-ps-700">{cert.certificate_number}</span>
-                <span className="text-xs text-slate-400 ml-2">{cert.reference_number}</span>
+                <span className="font-mono text-sm font-bold text-ps-700">{cert.certificate_number}</span>
+                <span className="ml-2 text-xs text-slate-400">{cert.reference_number}</span>
                 <div className="text-xs text-slate-500 mt-0.5">Issued: {fmt.date(cert.issued_at)}</div>
               </div>
               <Button variant="ghost" size="sm" onClick={() => certApi.print(cert.certificate_id)}>🖨️ Print</Button>
@@ -697,12 +768,12 @@ export const ChairmanDashboard: React.FC = () => {
       {tab === 'cor' && (
         <div className="grid gap-4">
           {corApps.map(app => (
-            <div key={app.application_id} className="card p-5 border-l-4 border-l-emerald-500">
+            <div key={app.application_id} className="p-5 border-l-4 card border-l-emerald-500">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <span className="font-bold text-ps-800 font-mono text-sm">{app.reference_number}</span>
-                  <span className="badge-blue ml-2 text-xs">COR</span>
-                  <div className="text-sm text-slate-500 mt-1">Approved: {fmt.date(app.approval_date)}</div>
+                  <span className="font-mono text-sm font-bold text-ps-800">{app.reference_number}</span>
+                  <span className="ml-2 text-xs badge-blue">COR</span>
+                  <div className="mt-1 text-sm text-slate-500">Approved: {fmt.date(app.approval_date)}</div>
                 </div>
                 <Button variant="primary" size="sm" onClick={async () => {
                   try {
@@ -733,17 +804,17 @@ export const ChairmanDashboard: React.FC = () => {
           </p>
           {signingIds.some((e: any) => (typeof e === 'string' ? 'approval' : e.type) === 'cor') &&
            signingIds.some((e: any) => (typeof e === 'string' ? true : e.type === 'approval')) && (
-            <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2">
+            <div className="p-2 text-xs border rounded-lg text-amber-600 bg-amber-50 border-amber-200">
               ⚠️ Mixed selection: approval certificates are signed via one batch call.
               COR certificates are signed individually using the same OTP.
               If the OTP is consumed by the approval batch, re-generate OTP before signing COR certs separately.
             </div>
           )}
           <Field label="Signing Code">
-            <input className="form-input text-center text-2xl tracking-widest font-mono" maxLength={6}
+            <input className="font-mono text-2xl tracking-widest text-center form-input" maxLength={6}
               value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} placeholder="000000" />
           </Field>
-          <Button variant="primary" onClick={handleBulkSign} loading={signing} size="lg" className="w-full justify-center">
+          <Button variant="primary" onClick={handleBulkSign} loading={signing} size="lg" className="justify-center w-full">
             Sign All {signingIds.length} Certificate(s)
           </Button>
         </div>
@@ -777,9 +848,9 @@ const ChairCertRow: React.FC<{
       <input type="checkbox" checked={selected} onChange={onToggle} className="w-5 h-5 rounded" />
       <div className="flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-mono font-bold text-sm text-ps-700">{cert.certificate_number ?? cert.cor_number ?? 'Generating...'}</span>
+          <span className="font-mono text-sm font-bold text-ps-700">{cert.certificate_number ?? cert.cor_number ?? 'Generating...'}</span>
           <span className="text-xs text-slate-400">{cert.reference_number}</span>
-          {isCOR && <span className="badge-emerald text-xs ml-1">COR</span>}
+          {isCOR && <span className="ml-1 text-xs badge-emerald">COR</span>}
         </div>
         <div className="text-xs text-slate-500 mt-0.5">
           {cert.signed_by ? `Signed: ${fmt.date(cert.signed_at)}` : 'Awaiting signature'}
@@ -892,7 +963,7 @@ export const AdminDashboard: React.FC = () => {
       <ToastContainer />
 
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={() => window.open('/app/pc-meeting', '_self')}>🏛️ PC Meeting</Button>
@@ -902,14 +973,14 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
           { label: 'Total Users',            value: stats.totalUsers,           icon: '👤', color: 'text-ps-700' },
           { label: 'Total Applications',     value: stats.totalApplications,    icon: '📋', color: 'text-emerald-700' },
           { label: 'Pending Verifications',  value: stats.pendingVerifications, icon: '⏳', color: 'text-amber-700' },
           { label: 'Overdue External Approvals', value: stats.overdueExternal,  icon: '🚨', color: stats.overdueExternal > 0 ? 'text-red-600' : 'text-slate-400' },
         ].map(s => (
-          <div key={s.label} className="card p-5">
+          <div key={s.label} className="p-5 card">
             <div className="flex items-center gap-3">
               <span className="text-3xl">{s.icon}</span>
               <div>
@@ -932,10 +1003,10 @@ export const AdminDashboard: React.FC = () => {
 
       {/* ── Officers Tab ─────────────────────────────────────────────────── */}
       {tab === 'officers' && (
-        <div className="card overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 flex justify-between items-center">
-            <span className="font-semibold text-slate-700 text-sm">All Officers & Users</span>
-            <span className="badge-blue text-xs">{officers.length} total</span>
+        <div className="overflow-hidden card">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+            <span className="text-sm font-semibold text-slate-700">All Officers & Users</span>
+            <span className="text-xs badge-blue">{officers.length} total</span>
           </div>
           <table className="data-table">
             <thead>
@@ -948,7 +1019,7 @@ export const AdminDashboard: React.FC = () => {
                     <div className="font-semibold text-slate-800">{o.Officer?.full_name ?? '—'}</div>
                     <div className="text-xs text-slate-400">{o.email}</div>
                   </td>
-                  <td><span className="badge-blue text-xs">{o.role}</span></td>
+                  <td><span className="text-xs badge-blue">{o.role}</span></td>
                   <td>
                     <span className={cx('badge text-xs',
                       o.status === 'ACTIVE' ? 'badge-green' :
@@ -956,7 +1027,7 @@ export const AdminDashboard: React.FC = () => {
                     )}>{o.status}</span>
                   </td>
                   <td>
-                    <div className="flex gap-1 flex-wrap">
+                    <div className="flex flex-wrap gap-1">
                       {o.status === 'PENDING_VERIFICATION' && (
                         <Button variant="success" size="sm" onClick={async () => {
                           await adminApi.approveOfficer(o.user_id)
@@ -981,7 +1052,7 @@ export const AdminDashboard: React.FC = () => {
               ))}
             </tbody>
           </table>
-          {officers.length === 0 && <div className="py-8 text-center text-slate-400 text-sm">No officers found</div>}
+          {officers.length === 0 && <div className="py-8 text-sm text-center text-slate-400">No officers found</div>}
         </div>
       )}
 
@@ -989,9 +1060,9 @@ export const AdminDashboard: React.FC = () => {
       {tab === 'reports' && (
         <div className="space-y-4">
           {/* Report controls */}
-          <div className="card p-5 space-y-4">
+          <div className="p-5 space-y-4 card">
             <h2 className="font-bold text-slate-800">Generate Report</h2>
-            <div className="grid sm:grid-cols-4 gap-3 items-end">
+            <div className="grid items-end gap-3 sm:grid-cols-4">
               <div>
                 <label className="form-label">Report Type</label>
                 <select className="form-input" value={reportType} onChange={e => { setReportType(e.target.value); setReportData(null) }}>
@@ -1010,7 +1081,7 @@ export const AdminDashboard: React.FC = () => {
                 <input className="form-input" type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
               </div>
               <div className="flex gap-2">
-                <Button variant="primary" onClick={runReport} loading={reportLoading} className="flex-1 justify-center">
+                <Button variant="primary" onClick={runReport} loading={reportLoading} className="justify-center flex-1">
                   📊 Generate
                 </Button>
                 {reportData && (
@@ -1035,19 +1106,19 @@ export const AdminDashboard: React.FC = () => {
             <div className="space-y-4">
               {/* Applications by status chart */}
               {reportData.by_status && (
-                <div className="card p-5">
-                  <h3 className="font-bold text-slate-700 mb-4">Applications by Status</h3>
+                <div className="p-5 card">
+                  <h3 className="mb-4 font-bold text-slate-700">Applications by Status</h3>
                   <div className="space-y-2">
                     {reportData.by_status.map((row: any) => {
                       const total = reportData.by_status.reduce((s: number, r: any) => s + parseInt(r.count), 0)
                       const pct = total > 0 ? (parseInt(row.count) / total) * 100 : 0
                       return (
                         <div key={row.status} className="flex items-center gap-3">
-                          <div className="w-36 text-xs text-slate-600 font-medium truncate">{row.status?.replace(/_/g,' ')}</div>
-                          <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-ps-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                          <div className="text-xs font-medium truncate w-36 text-slate-600">{row.status?.replace(/_/g,' ')}</div>
+                          <div className="flex-1 h-4 overflow-hidden rounded-full bg-slate-100">
+                            <div className="h-full transition-all rounded-full bg-ps-600" style={{ width: `${pct}%` }} />
                           </div>
-                          <div className="w-16 text-xs text-right font-bold text-slate-700">{row.count}</div>
+                          <div className="w-16 text-xs font-bold text-right text-slate-700">{row.count}</div>
                         </div>
                       )
                     })}
@@ -1057,29 +1128,29 @@ export const AdminDashboard: React.FC = () => {
 
               {/* Financial summary */}
               {reportData.total_collected !== undefined && (
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div className="card p-5">
-                    <div className="text-xs text-slate-500 uppercase tracking-wide">Total Collected</div>
-                    <div className="text-2xl font-bold text-emerald-700 mt-1">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="p-5 card">
+                    <div className="text-xs tracking-wide uppercase text-slate-500">Total Collected</div>
+                    <div className="mt-1 text-2xl font-bold text-emerald-700">
                       Rs. {parseFloat(reportData.total_collected || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
-                  <div className="card p-5">
-                    <div className="text-xs text-slate-500 uppercase tracking-wide">Payments</div>
-                    <div className="text-2xl font-bold text-ps-700 mt-1">{reportData.payments?.length ?? 0}</div>
+                  <div className="p-5 card">
+                    <div className="text-xs tracking-wide uppercase text-slate-500">Payments</div>
+                    <div className="mt-1 text-2xl font-bold text-ps-700">{reportData.payments?.length ?? 0}</div>
                   </div>
-                  <div className="card p-5">
-                    <div className="text-xs text-slate-500 uppercase tracking-wide">Fines Issued</div>
-                    <div className="text-2xl font-bold text-red-700 mt-1">{reportData.fines?.length ?? 0}</div>
+                  <div className="p-5 card">
+                    <div className="text-xs tracking-wide uppercase text-slate-500">Fines Issued</div>
+                    <div className="mt-1 text-2xl font-bold text-red-700">{reportData.fines?.length ?? 0}</div>
                   </div>
                 </div>
               )}
 
               {/* Decisions breakdown */}
               {reportData.decisions_by_type && (
-                <div className="card p-5">
-                  <h3 className="font-bold text-slate-700 mb-3">Decisions by Type</h3>
-                  <div className="grid sm:grid-cols-4 gap-3">
+                <div className="p-5 card">
+                  <h3 className="mb-3 font-bold text-slate-700">Decisions by Type</h3>
+                  <div className="grid gap-3 sm:grid-cols-4">
                     {reportData.decisions_by_type.map((row: any) => (
                       <div key={row.decision_type} className={cx('p-3 rounded-xl text-center',
                         row.decision_type === 'APPROVED' ? 'bg-emerald-50 border border-emerald-200' :
@@ -1087,7 +1158,7 @@ export const AdminDashboard: React.FC = () => {
                         'bg-amber-50 border border-amber-200'
                       )}>
                         <div className="text-2xl font-bold">{row.count}</div>
-                        <div className="text-xs font-semibold mt-1">{row.decision_type?.replace(/_/g,' ')}</div>
+                        <div className="mt-1 text-xs font-semibold">{row.decision_type?.replace(/_/g,' ')}</div>
                       </div>
                     ))}
                   </div>
@@ -1107,12 +1178,12 @@ export const AdminDashboard: React.FC = () => {
       {/* ── Audit Logs Tab ────────────────────────────────────────────────── */}
       {tab === 'audit' && (
         <div className="space-y-4">
-          <div className="card p-5 space-y-4">
+          <div className="p-5 space-y-4 card">
             <h2 className="font-bold text-slate-800">Audit Log Search (FR-19)</h2>
-            <div className="grid sm:grid-cols-3 gap-3 items-end">
+            <div className="grid items-end gap-3 sm:grid-cols-3">
               <div>
                 <label className="form-label">Reference Number</label>
-                <input className="form-input font-mono" placeholder="KPS-BP-2025-00145"
+                <input className="font-mono form-input" placeholder="KPS-BP-2025-00145"
                   value={auditRef} onChange={e => setAuditRef(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && searchAudit()} />
               </div>
@@ -1136,10 +1207,10 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           {auditLogs.length > 0 ? (
-            <div className="card overflow-hidden">
-              <div className="px-5 py-3 border-b border-slate-100 flex justify-between items-center">
-                <span className="font-semibold text-slate-700 text-sm">Audit Trail</span>
-                <span className="badge-blue text-xs">{auditLogs.length} records</span>
+            <div className="overflow-hidden card">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+                <span className="text-sm font-semibold text-slate-700">Audit Trail</span>
+                <span className="text-xs badge-blue">{auditLogs.length} records</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="data-table">
@@ -1156,7 +1227,7 @@ export const AdminDashboard: React.FC = () => {
                   <tbody>
                     {auditLogs.slice(0, 100).map((log: any, i: number) => (
                       <tr key={log.log_id ?? i}>
-                        <td className="text-xs font-mono text-slate-500 whitespace-nowrap">
+                        <td className="font-mono text-xs text-slate-500 whitespace-nowrap">
                           {fmt.datetime(log.created_at)}
                         </td>
                         <td>
@@ -1170,7 +1241,7 @@ export const AdminDashboard: React.FC = () => {
                         </td>
                         <td className="text-sm text-slate-700">
                           {log.user_name ?? log.user_id?.slice(0, 8)}
-                          {log.user_role && <span className="text-xs text-slate-400 ml-1">({log.user_role})</span>}
+                          {log.user_role && <span className="ml-1 text-xs text-slate-400">({log.user_role})</span>}
                         </td>
                         <td className="font-mono text-xs text-ps-600">
                           {log.reference_number ?? '—'}
@@ -1178,7 +1249,7 @@ export const AdminDashboard: React.FC = () => {
                         <td className="text-xs text-slate-500">
                           {log.entity_type}
                         </td>
-                        <td className="text-xs text-slate-400 max-w-xs truncate" title={log.changes_summary}>
+                        <td className="max-w-xs text-xs truncate text-slate-400" title={log.changes_summary}>
                           {log.changes_summary ?? log.notes ?? '—'}
                         </td>
                       </tr>
@@ -1187,7 +1258,7 @@ export const AdminDashboard: React.FC = () => {
                 </table>
               </div>
               {auditLogs.length > 100 && (
-                <div className="px-5 py-3 text-xs text-slate-400 border-t border-slate-100">
+                <div className="px-5 py-3 text-xs border-t text-slate-400 border-slate-100">
                   Showing 100 of {auditLogs.length} records. Use reference number filter to narrow results.
                 </div>
               )}
@@ -1195,8 +1266,8 @@ export const AdminDashboard: React.FC = () => {
           ) : auditLoading ? (
             <div className="flex justify-center py-8"><Spinner size="lg" className="text-ps-600" /></div>
           ) : (
-            <div className="card p-8 text-center text-slate-400">
-              <div className="text-4xl mb-2">📝</div>
+            <div className="p-8 text-center card text-slate-400">
+              <div className="mb-2 text-4xl">📝</div>
               <p>Enter a reference number or action to search audit logs</p>
             </div>
           )}
@@ -1206,11 +1277,11 @@ export const AdminDashboard: React.FC = () => {
       {/* ── System Health Tab ─────────────────────────────────────────────── */}
       {tab === 'health' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
             <h2 className="font-bold text-slate-800">System Health</h2>
             <Button variant="ghost" size="sm" onClick={() => refetchHealth()}>↻ Refresh</Button>
           </div>
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid gap-4 sm:grid-cols-3">
             {[
               { label: 'Database',    status: health.database ?? 'unknown',    icon: '🗄️' },
               { label: 'Email SMTP',  status: health.email ?? 'unknown',       icon: '✉️' },
@@ -1226,7 +1297,7 @@ export const AdminDashboard: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{s.icon}</span>
                   <div>
-                    <div className="font-semibold text-slate-800 text-sm">{s.label}</div>
+                    <div className="text-sm font-semibold text-slate-800">{s.label}</div>
                     <div className={cx('text-xs font-bold',
                       s.status === 'ok' || s.status === 'healthy' ? 'text-emerald-600' :
                       s.status === 'degraded' ? 'text-amber-600' : 'text-red-600'
@@ -1316,8 +1387,18 @@ export const MessagesPage: React.FC = () => {
 
   const sendMsg = async () => {
     if (!msg.trim() || !activeConv) return
+    if (!activeConv.peer_user_id) {
+      toast('This conversation has no recipient. Start a new conversation with a selected recipient.', 'error')
+      return
+    }
     try {
-      await messageApi.send({ conversation_id: activeConv.conversation_id, body: msg, message_type: 'TEXT' })
+      await messageApi.send({
+        conversation_id: activeConv.conversation_id,
+        reference_number: activeConv.reference_number,
+        recipient_id: activeConv.peer_user_id,
+        body: msg,
+        message_type: 'TEXT',
+      })
       setMsg('')
       qc.invalidateQueries(['thread', activeConv.conversation_id])
     } catch (e) { toast(getErrorMsg(e), 'error') }
@@ -1328,8 +1409,8 @@ export const MessagesPage: React.FC = () => {
       <ToastContainer />
 
       {/* Sidebar */}
-      <div className="w-72 card flex flex-col">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+      <div className="flex flex-col w-72 card">
+        <div className="flex items-center justify-between p-4 border-b border-slate-100">
           <h2 className="font-bold text-slate-800">Messages</h2>
           <Button variant="ghost" size="icon" onClick={() => setNewConvOpen(true)}>+</Button>
         </div>
@@ -1339,18 +1420,18 @@ export const MessagesPage: React.FC = () => {
               className={cx('w-full text-left p-4 hover:bg-slate-50 transition-colors',
                 activeConv?.conversation_id === c.conversation_id && 'bg-ps-50'
               )}>
-              <div className="font-semibold text-sm text-slate-800 truncate">
+              <div className="text-sm font-semibold truncate text-slate-800">
                 {c.participants?.filter((p: any) => p.user_id !== user?.user_id).map((p: any) => p.full_name).join(', ') ?? 'Chat'}
               </div>
               <div className="text-xs text-slate-400 truncate mt-0.5">{c.last_message ?? 'Start conversation'}</div>
             </button>
           ))}
-          {convs.length === 0 && <div className="p-6 text-center text-sm text-slate-400">No conversations yet</div>}
+          {convs.length === 0 && <div className="p-6 text-sm text-center text-slate-400">No conversations yet</div>}
         </div>
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 card flex flex-col">
+      <div className="flex flex-col flex-1 card">
         {activeConv ? (
           <>
             <div className="p-4 border-b border-slate-100">
@@ -1358,7 +1439,7 @@ export const MessagesPage: React.FC = () => {
                 {activeConv.participants?.filter((p: any) => p.user_id !== user?.user_id).map((p: any) => p.full_name).join(', ')}
               </h3>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 p-4 space-y-3 overflow-y-auto">
               {messages.map(m => (
                 <div key={m.message_id} className={cx('flex', m.sender_id === user?.user_id && 'justify-end')}>
                   <div className={cx('max-w-xs px-4 py-2 rounded-2xl text-sm',
@@ -1372,14 +1453,14 @@ export const MessagesPage: React.FC = () => {
                 </div>
               ))}
             </div>
-            <div className="p-4 border-t border-slate-100 flex gap-2">
-              <input className="form-input flex-1" placeholder="Type a message..." value={msg}
+            <div className="flex gap-2 p-4 border-t border-slate-100">
+              <input className="flex-1 form-input" placeholder="Type a message..." value={msg}
                 onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMsg()} />
               <Button variant="primary" onClick={sendMsg}>Send</Button>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+          <div className="flex items-center justify-center flex-1 text-sm text-slate-400">
             Select a conversation to start messaging
           </div>
         )}
@@ -1409,16 +1490,16 @@ export const NotificationsPage: React.FC = () => {
       {notifications.map(n => (
         <div key={n.notification_id}
           className={cx('card p-4 flex gap-3', !n.is_read && 'border-l-4 border-l-ps-500')}>
-          <div className="text-xl flex-shrink-0">{n.event_type?.includes('PAYMENT') ? '💳' : n.event_type?.includes('COMPLAINT') ? '⚠️' : '🔔'}</div>
+          <div className="flex-shrink-0 text-xl">{n.event_type?.includes('PAYMENT') ? '💳' : n.event_type?.includes('COMPLAINT') ? '⚠️' : '🔔'}</div>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold text-slate-800 text-sm">{n.title}</div>
+            <div className="text-sm font-semibold text-slate-800">{n.title}</div>
             <p className="text-sm text-slate-600 mt-0.5">{n.body}</p>
-            {n.reference_number && <span className="text-xs text-ps-600 font-mono mt-1 block">{n.reference_number}</span>}
-            <div className="text-xs text-slate-400 mt-1">{fmt.relative(n.created_at)}</div>
+            {n.reference_number && <span className="block mt-1 font-mono text-xs text-ps-600">{n.reference_number}</span>}
+            <div className="mt-1 text-xs text-slate-400">{fmt.relative(n.created_at)}</div>
           </div>
           {!n.is_read && (
             <button onClick={() => notificationApi.markRead(n.notification_id).then(() => qc.invalidateQueries('all-notifs'))}
-              className="text-xs text-ps-600 hover:underline self-start flex-shrink-0">
+              className="self-start flex-shrink-0 text-xs text-ps-600 hover:underline">
               Mark read
             </button>
           )}
@@ -1480,16 +1561,16 @@ const PwRequestRow: React.FC<{
     <div className={cx('p-5 flex items-start justify-between gap-4',
       urgent && 'bg-amber-50'
     )}>
-      <div className="min-w-0 flex-1">
+      <div className="flex-1 min-w-0">
         {/* User info */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="w-8 h-8 rounded-full bg-ps-800 flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-bold">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-full bg-ps-800">
+            <span className="text-xs font-bold text-white">
               {(user.full_name ?? user.email ?? '?').charAt(0).toUpperCase()}
             </span>
           </div>
           <div>
-            <div className="font-semibold text-slate-800 text-sm">
+            <div className="text-sm font-semibold text-slate-800">
               {user.full_name ?? user.email}
             </div>
             <div className="text-xs text-slate-400">{user.email}</div>
@@ -1504,7 +1585,7 @@ const PwRequestRow: React.FC<{
         </div>
 
         {/* Request metadata */}
-        <div className="mt-2 flex items-center gap-4 text-xs text-slate-500 flex-wrap">
+        <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500">
           <span>
             Submitted: <strong>{submittedAt
               ? new Date(submittedAt).toLocaleDateString('en-LK', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
@@ -1512,7 +1593,7 @@ const PwRequestRow: React.FC<{
             }</strong>
           </span>
           {urgent && (
-            <span className="text-amber-600 font-semibold">
+            <span className="font-semibold text-amber-600">
               ⚠️ Pending {ageDays} day{ageDays !== 1 ? 's' : ''}
             </span>
           )}
@@ -1525,7 +1606,7 @@ const PwRequestRow: React.FC<{
       </div>
 
       {/* Actions */}
-      <div className="flex flex-col gap-2 flex-shrink-0">
+      <div className="flex flex-col flex-shrink-0 gap-2">
         <Button
           variant="success"
           size="sm"
@@ -1559,7 +1640,7 @@ const PwRequestRow: React.FC<{
           </div>
           <Field label="Reason for Rejection" required>
             <textarea
-              className="form-input resize-none"
+              className="resize-none form-input"
               rows={3}
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
@@ -1594,7 +1675,7 @@ const PwRequestHistory: React.FC = () => {
   // (backend only returns PENDING; we add a separate call for history)
   // For now show a simple informational note
   return (
-    <div className="text-xs text-slate-400 text-center py-2">
+    <div className="py-2 text-xs text-center text-slate-400">
       Only pending requests are shown above. Resolved requests are retained in the audit log.
     </div>
   )

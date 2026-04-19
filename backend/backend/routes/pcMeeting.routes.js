@@ -7,7 +7,7 @@ const { allowRoles } = require('../middleware/roleGuard');
 router.use(auth);
 
 // ── Static and prefix routes FIRST (before /:id to avoid param shadowing) ────
-router.post('/',                              allowRoles('CHAIRMAN','ADMIN'), validate(validate.schemas.createMeeting), ctrl.createMeeting);
+router.post('/',                              allowRoles('SW','CHAIRMAN','ADMIN'), validate(validate.schemas.createMeeting), ctrl.createMeeting);
 router.get('/',                               ctrl.listAll);
 router.get('/upcoming',                       ctrl.getUpcoming);
 router.get('/completed',                      ctrl.getCompleted);
@@ -20,7 +20,7 @@ router.get('/votes/:decisionId',              allowRoles('CHAIRMAN','SW','TO','H
 
 // ── Dynamic :id routes LAST ───────────────────────────────────────────────────
 router.get('/:id',                            ctrl.getById);
-router.put('/:id',                            allowRoles('CHAIRMAN','ADMIN'), ctrl.updateMeeting);
+router.put('/:id',                            allowRoles('SW','CHAIRMAN','ADMIN'), ctrl.updateMeeting);
 router.put('/:id/agenda',                     ctrl.updateAgenda);
 router.post('/:id/add-application',           ctrl.addToAgenda);
 // PDF: every PC meeting member can add their own minute on each application in the meeting

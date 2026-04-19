@@ -9,7 +9,7 @@ const validate = require('../middleware/validate');
 router.use(auth);
 
 const READ_ROLES = ['PSO','SW','TO','HO','RDA','GJS','UDA','CHAIRMAN','ADMIN'];
-const PC_WRITE   = ['CHAIRMAN','ADMIN'];
+const PC_WRITE   = ['CHAIRMAN','SW','ADMIN'];
 
 router.post('/',                          allowRoles(...PC_WRITE), validate(validate.schemas.createDecision), ctrl.createDecision);
 router.get('/ref/:ref',                   allowRoles(...READ_ROLES), ctrl.getByRef);

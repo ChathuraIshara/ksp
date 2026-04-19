@@ -20,7 +20,11 @@ const SWDashboard: React.FC = () => {
   const { data: pendingData, isLoading: pendingLoading } = useQuery('sw-pending-reviews',
     () => applicationApi.swAssigned()
   )
-  const pendingReviews: any[] = pendingData?.data?.data ?? pendingData?.data ?? []
+  const pendingReviewsRaw: any = pendingData?.data?.data ?? pendingData?.data ?? []
+  const pendingReviews: any[] = Array.isArray(pendingReviewsRaw)
+    ? pendingReviewsRaw
+    : (pendingReviewsRaw?.data ?? [])
+  console.log("pending reviews",pendingReviews);
 
   // SW cannot access PSO queue endpoint; derive pending assignments from recent applications.
   const { data: pendingTOData } = useQuery('sw-pending-to',
@@ -223,6 +227,17 @@ const SWReviewModal: React.FC<{ open: boolean; onClose: () => void; app: any; to
         }
         toast('Escalated to PC Meeting agenda.', 'success')
       } else {
+        // External forwarding is valid from SW_REVIEW, EXTERNAL_APPROVAL, and PC_REVIEW
+        // (PC_REVIEW -> EXTERNAL_APPROVAL is allowed to request additional assessments).
+        if (app.status !== 'SW_REVIEW' && app.status !== 'EXTERNAL_APPROVAL' && app.status !== 'PC_REVIEW') {
+          toast(`Cannot forward to external officer from status: ${app.status}`, 'error')
+          return
+        }
+
+        if (app.status === 'SW_REVIEW' || app.status === 'PC_REVIEW') {
+          await applicationApi.updateStatus(app.reference_number, 'EXTERNAL_APPROVAL')
+        }
+
         // Create external approval record
         await externalApprovalApi.forward({
           reference_number: app.reference_number,
@@ -230,7 +245,6 @@ const SWReviewModal: React.FC<{ open: boolean; onClose: () => void; app: any; to
           officer_type:     forwardTo,
           sw_comments:      swComments,
         })
-        await applicationApi.updateStatus(app.reference_number, 'EXTERNAL_APPROVAL')
         toast(`Forwarded to ${forwardTo} officer for review.`, 'success')
       }
       onRefresh()
@@ -423,7 +437,9 @@ const TOAssignRow: React.FC<{ app: any; toast: Function; onRefresh: () => void }
       })
       toast(`Assigned to TO. Applicant notified with reference number.`, 'success')
       onRefresh()
-    } catch (e) { toast(getErrorMsg(e), 'error') }
+    } catch (e) {
+      // toast(getErrorMsg(e), 'error') 
+      }
     finally { setAssigning(false) }
   }
 

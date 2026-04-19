@@ -48,6 +48,30 @@ exports.scheduleInspection = async (req, res, next) => {
       }
     }
 
+    // Keep application workflow consistent with scheduling action.
+    // Some older rows are still ASSIGNED_TO_SW at schedule time.
+    try {
+      const { Application } = require('../models');
+      const appService = require('../services/application.service');
+      const app = await Application.findOne({
+        where: insp.application_id
+          ? { application_id: insp.application_id }
+          : { reference_number: insp.reference_number },
+        attributes: ['application_id', 'status'],
+      });
+
+      if (app) {
+        if (app.status === 'ASSIGNED_TO_SW') {
+          await appService.transition(app.application_id, 'ASSIGNED_TO_TO');
+          await appService.transition(app.application_id, 'INSPECTION_SCHEDULED');
+        } else if (app.status === 'ASSIGNED_TO_TO') {
+          await appService.transition(app.application_id, 'INSPECTION_SCHEDULED');
+        }
+      }
+    } catch (statusErr) {
+      console.error('[INSPECTION] Application status update failed:', statusErr.message);
+    }
+
     // US10: Notify applicant of scheduled inspection (IN_APP + SMS)
     setImmediate(async () => {
       try {

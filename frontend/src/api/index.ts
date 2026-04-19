@@ -216,6 +216,7 @@ export const pcMeetingApi = {
   list:           () => api.get('/pc-meetings'),
   getById:        (id: string) => api.get(`/pc-meetings/${id}`),
   upcoming:       () => api.get('/pc-meetings/upcoming'),
+  updateMeeting:  (id: string, data: any) => api.put(`/pc-meetings/${id}`, data),
   addApplication: (id: string, data: any) => api.post(`/pc-meetings/${id}/add-application`, data),
   addMinute:      (meetingId: string, appId: string, data: any) =>
     api.post(`/pc-meetings/${meetingId}/applications/${appId}/minute`, data),

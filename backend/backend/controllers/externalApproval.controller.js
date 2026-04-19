@@ -31,8 +31,21 @@ exports.getByOfficer = async (req, res, next) => {
 // Frontend: listForGJS/HO/RDA call this with ?type=GJS|HO|RDA
 exports.getMyApprovals = async (req, res, next) => {
   try {
-    const where = { officer_id: req.user.user_id };
-    if (req.query.type) where.officer_type = req.query.type.toUpperCase();
+    const { Op } = require('sequelize');
+    const roleType = ['HO', 'RDA', 'GJS', 'PHI'].includes(req.user.role)
+      ? req.user.role
+      : null;
+    const requestedType = req.query.type ? String(req.query.type).toUpperCase() : null;
+    const effectiveType = requestedType || roleType;
+
+    const where = {
+      [Op.or]: [
+        { officer_id: req.user.user_id },
+        { officer_id: null },
+      ],
+    };
+    if (effectiveType) where.officer_type = effectiveType;
+
     return success(res, await ExternalApproval.findAll({
       where,
       order: [['forwarded_at', 'DESC']],
