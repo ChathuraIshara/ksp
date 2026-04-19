@@ -9,6 +9,13 @@ const handleDecisionOutcome = async (decisionId, applicationId, referenceNumber,
   if (!decision) throw new Error('Decision not found');
 
   const line = await TrackingLine.findOne({ where: { reference_number: referenceNumber } });
+  const app = await Application.findByPk(applicationId, { attributes: ['status'] });
+
+  // Decisioning belongs to the PC stage. If this app is still in EXTERNAL_APPROVAL,
+  // move it to PC_REVIEW first so APPROVED/REJECTED transitions are valid.
+  if (app?.status === 'EXTERNAL_APPROVAL') {
+    await applicationService.transition(applicationId, 'PC_REVIEW', decidedBy);
+  }
 
   switch (decision.decision_type) {
     case 'APPROVED':

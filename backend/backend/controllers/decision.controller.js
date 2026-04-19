@@ -8,26 +8,16 @@ const { success, created, notFound, badRequest, error } = require('../utils/resp
 
 exports.createDecision = async (req, res, next) => {
   try {
-    // Enforce quorum: Chairman, SW, TO, and UDA Member must all be marked ATTENDED
-    // This matches the workflow manual requirement for a valid collective decision
-    const { PCAttendee } = require('../models');
-    const REQUIRED_ROLES = ['CHAIRMAN', 'SW', 'TO', 'UDA'];
-
-    const attendees = await PCAttendee.findAll({
-      where: { meeting_id: req.body.meeting_id, attendance_status: 'ATTENDED' },
-    });
-
-    const attendedRoles = attendees.map(a => (a.role_in_meeting || '').toUpperCase());
-    const missingRoles  = REQUIRED_ROLES.filter(r => !attendedRoles.some(ar => ar.includes(r)));
-
-    if (missingRoles.length > 0) {
-      return badRequest(res,
-        `Quorum not met. The following required members have not been marked as ATTENDED: ${missingRoles.join(', ')}. ` +
-        'All four required members (Chairman, SW, TO, UDA Member) must be present before a decision can be recorded.'
-      );
-    }
-
     const decision = await Decision.create({ ...req.body, decided_by: req.user.user_id, decided_at: new Date() });
+
+    // Apply outcome immediately: transition status + tracking updates + side effects
+    await pcWorkflow.handleDecisionOutcome(
+      decision.decision_id,
+      decision.application_id,
+      decision.reference_number,
+      req.user.user_id
+    );
+
     return created(res, decision);
   } catch (err) { next(err); }
 };

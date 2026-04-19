@@ -1,4 +1,5 @@
-const { Application } = require('../models');
+const { Application, TrackingLine, TrackingNode } = require('../models');
+const trackingLineService = require('./trackingLine.service');
 
 /**
  * Application status state machine.
@@ -17,7 +18,7 @@ const TRANSITIONS = {
   INSPECTION_DONE:          ['SW_REVIEW'],
   SW_REVIEW:                ['EXTERNAL_APPROVAL', 'PC_REVIEW'],
   EXTERNAL_APPROVAL:        ['PC_REVIEW', 'SW_REVIEW'],
-  PC_REVIEW:                ['APPROVED', 'CONDITIONALLY_APPROVED', 'REJECTED', 'FURTHER_REVIEW', 'DEFERRED'],
+  PC_REVIEW:                ['EXTERNAL_APPROVAL', 'APPROVED', 'CONDITIONALLY_APPROVED', 'REJECTED', 'FURTHER_REVIEW', 'DEFERRED'],
   APPROVED:                 ['APPROVAL_FEE_PENDING', 'CERTIFICATE_READY'],
   CONDITIONALLY_APPROVED:   ['APPROVAL_FEE_PENDING', 'CERTIFICATE_READY'],
   APPROVAL_FEE_PENDING:     ['CERTIFICATE_READY'],
@@ -35,13 +36,57 @@ const TRANSITIONS = {
 
 const canTransition = (from, to) => (TRANSITIONS[from] || []).includes(to);
 
+const STATUS_TO_NODE = {
+  VERIFIED:               { type: 'PSO_VERIFIED',         label: 'PSO Verified' },
+  ASSIGNED_TO_SW:         { type: 'SW_INITIAL',           label: 'SW Assigned' },
+  ASSIGNED_TO_TO:         { type: 'TO_INSPECTION',        label: 'TO Inspection Assigned' },
+  INSPECTION_SCHEDULED:   { type: 'INSPECTION_SCHEDULED', label: 'Inspection Scheduled' },
+  INSPECTION_DONE:        { type: 'INSPECTION_DONE',      label: 'Inspection Completed' },
+  SW_REVIEW:              { type: 'SW_REVIEW',            label: 'SW Review' },
+  EXTERNAL_APPROVAL:      { type: 'EXTERNAL_REVIEW',      label: 'External Officer Review' },
+  PC_REVIEW:              { type: 'PC_COMMITTEE',         label: 'PC Committee Review' },
+  APPROVED:               { type: 'APPROVED',             label: 'Application Approved' },
+  CONDITIONALLY_APPROVED: { type: 'APPROVED',             label: 'Application Conditionally Approved' },
+  REJECTED:               { type: 'REJECTED',             label: 'Application Rejected' },
+  FURTHER_REVIEW:         { type: 'FURTHER_REVIEW',       label: 'Further Review Required' },
+  DEFERRED:               { type: 'DEFERRED',             label: 'Decision Deferred' },
+  COR_REVIEW:             { type: 'COR_FINAL_INSPECTION', label: 'COR Review Started' },
+  COR_ISSUED:             { type: 'COR_ISSUED',           label: 'COR Issued' },
+};
+
+const appendTrackingNodeForStatus = async (app, newStatus) => {
+  const nodeDef = STATUS_TO_NODE[newStatus];
+  if (!nodeDef) return;
+
+  const line = await TrackingLine.findOne({ where: { application_id: app.application_id } });
+  if (!line) return;
+
+  const lastNode = await TrackingNode.findOne({
+    where: { tracking_line_id: line.tracking_line_id },
+    order: [['sequence_number', 'DESC']],
+  });
+
+  // Avoid duplicate nodes on repeated writes of same status.
+  if (lastNode?.node_type === nodeDef.type) return;
+
+  await trackingLineService.addNode(
+    line.tracking_line_id,
+    app.reference_number,
+    nodeDef.type,
+    nodeDef.label,
+    { status: 'COMPLETED', completed_at: new Date() }
+  );
+};
+
 const transition = async (applicationId, newStatus, updatedBy) => {
   const app = await Application.findByPk(applicationId);
   if (!app) throw new Error('Application not found');
   if (!canTransition(app.status, newStatus)) {
     throw new Error(`Cannot transition from '${app.status}' to '${newStatus}'`);
   }
-  return app.update({ status: newStatus });
+  const updated = await app.update({ status: newStatus });
+  await appendTrackingNodeForStatus(updated, newStatus);
+  return updated;
 };
 
 /**
@@ -51,7 +96,9 @@ const transition = async (applicationId, newStatus, updatedBy) => {
 const forceTransition = async (applicationId, newStatus) => {
   const app = await Application.findByPk(applicationId);
   if (!app) throw new Error('Application not found');
-  return app.update({ status: newStatus });
+  const updated = await app.update({ status: newStatus });
+  await appendTrackingNodeForStatus(updated, newStatus);
+  return updated;
 };
 
 const computeExternalApprovalFlags = async (applicationId) => {

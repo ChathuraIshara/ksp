@@ -18,7 +18,7 @@ const User = sequelize.define('User', {
   // Reference pattern field names
   isBlocked:      { type: DataTypes.BOOLEAN, defaultValue: false,  comment: 'Admin block — matches reference pattern' },
   emailVerified:  { type: DataTypes.BOOLEAN, defaultValue: false,  comment: 'Email OTP verified — replaces first_login_verified' },
-  otp_code: { type: DataTypes.STRING(10) },
+  otp_code: { type: DataTypes.STRING(128) },
   otp_expires_at: { type: DataTypes.DATE },
   reset_token: { type: DataTypes.STRING(255), comment: 'Hashed password reset token' },
   reset_token_expires_at: { type: DataTypes.DATE, comment: 'Reset token expiry — 1 hour' },

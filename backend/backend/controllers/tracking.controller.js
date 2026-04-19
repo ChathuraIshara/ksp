@@ -89,12 +89,20 @@ exports.getByRef = async (req, res, next) => {
     if (!app) return notFound(res, 'Application not found');
 
     const line = await TrackingLine.findOne({
-      where:   { application_id: app.application_id },
-      include: [{ model: TrackingNode, as: 'nodes', order: [['sequence_number', 'ASC']] }],
+      where: { application_id: app.application_id },
     });
     if (!line) return notFound(res, 'Tracking line not found');
 
-    return success(res, line);
+    const nodes = await TrackingNode.findAll({
+      where: { tracking_line_id: line.tracking_line_id },
+      order: [['sequence_number', 'ASC']],
+    });
+
+    return success(res, {
+      ...line.toJSON(),
+      current_status: app.status,
+      nodes,
+    });
   } catch (err) { next(err); }
 };
 
@@ -172,12 +180,20 @@ exports.displayForOfficer = async (req, res, next) => {
     if (!app) return notFound(res, 'Application not found');
 
     const line = await TrackingLine.findOne({
-      where:   { application_id: app.application_id },
-      include: [{ model: TrackingNode, as: 'nodes', order: [['sequence_number', 'ASC']] }],
+      where: { application_id: app.application_id },
     });
     if (!line) return notFound(res, 'Tracking line not found');
 
-    return success(res, line);
+    const nodes = await TrackingNode.findAll({
+      where: { tracking_line_id: line.tracking_line_id },
+      order: [['sequence_number', 'ASC']],
+    });
+
+    return success(res, {
+      ...line.toJSON(),
+      current_status: app.status,
+      nodes,
+    });
   } catch (err) { next(err); }
 };
 
