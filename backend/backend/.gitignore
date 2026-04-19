@@ -1,0 +1,13 @@
+node_modules/
+.env
+uploads/documents/*
+uploads/photos/*
+uploads/agreements/*
+uploads/certificates/*
+uploads/receipts/*
+!uploads/**/.gitkeep
+keys/
+*.log
+
+.env.production
+logs/

@@ -1,0 +1,16 @@
+tax_number,property_address,road_name,property_type,land_area_perches,access_road_width_m,access_road_ownership,annual_tax_amount,tax_payment_status,ward,local_authority_area,owner_name,owner_nic,owner_phone
+KEL/RES/001/2024,No. 45 Jayawardena Mawatha Kelaniya,Jayawardena Mawatha,Residential,12.50,6.00,LOCAL_GOVERNMENT,18500.00,PAID,Ward 01,Kelaniya,Kamal Jayawardena,199012345678,0711234567
+KEL/RES/002/2024,No. 12 Sirimavo Bandaranayake Mawatha Peliyagoda,Sirimavo Bandaranayake Mawatha,Residential,8.75,4.50,LOCAL_GOVERNMENT,12000.00,PAID,Ward 02,Kelaniya,Samanthi Perera,198756789012,0722345678
+KEL/RES/003/2024,No. 78 Temple Road Kelaniya,Temple Road,Residential,15.00,5.00,RDA,22000.00,PAID,Ward 03,Kelaniya,Ranjith Dissanayake,197834567890,0733456789
+KEL/COM/004/2024,No. 23 Baseline Road Peliyagoda,Baseline Road,Commercial,20.00,8.00,RDA,45000.00,PAID,Ward 04,Peliyagoda,Sunanda Enterprises Ltd,N/A,0112456789
+KEL/RES/005/2024,No. 56 Ragama Road Kelaniya,Ragama Road,Residential,10.25,4.00,LOCAL_GOVERNMENT,14500.00,UNPAID,Ward 05,Kelaniya,Nimal Fernando,198901234567,0744567890
+KEL/IND/006/2024,Lot 7 Peliyagoda Industrial Zone,Peliyagoda Industrial Road,Industrial,45.00,10.00,LOCAL_GOVERNMENT,85000.00,PAID,Ward 06,Peliyagoda,Lanka Steel Pvt Ltd,N/A,0112567890
+KEL/RES/007/2024,No. 33 Kandy Road Kelaniya,Kandy Road,Residential,18.50,6.00,RDA,28000.00,PAID,Ward 07,Kelaniya,Priyanka Wijesekara,199234567890,0755678901
+KEL/RES/008/2024,No. 91 New Kandy Road Kelaniya,New Kandy Road,Residential,9.00,5.00,LOCAL_GOVERNMENT,11000.00,PAID,Ward 08,Kelaniya,Chaminda Rathnayake,198645678901,0766789012
+KEL/COM/009/2024,No. 14 Colombo Road Peliyagoda,Colombo Road,Commercial,25.00,7.50,RDA,55000.00,PAID,Ward 09,Peliyagoda,Thilanka Holdings,N/A,0112678901
+KEL/RES/010/2024,No. 67 Mahawatta Road Kelaniya,Mahawatta Road,Residential,11.75,4.50,PRIVATE,16000.00,ARREARS,Ward 10,Kelaniya,Anura Bandara,197756789012,0777890123
+KEL/RES/011/2024,No. 29 Kelani Road Kelaniya,Kelani Road,Residential,14.00,5.50,LOCAL_GOVERNMENT,19500.00,PAID,Ward 11,Kelaniya,Malini Seneviratne,198867890123,0788901234
+KEL/RES/012/2024,No. 5 Sapugaskanda Road Peliyagoda,Sapugaskanda Road,Residential,7.50,4.00,RDA,9500.00,PAID,Ward 12,Peliyagoda,Roshan Gunawardena,199378901234,0799012345
+KEL/IND/013/2024,Block B Peliyagoda Warehouse Zone,Warehouse Road,Industrial,60.00,12.00,LOCAL_GOVERNMENT,120000.00,PAID,Ward 13,Peliyagoda,Express Logistics Ltd,N/A,0112789012
+KEL/RES/014/2024,No. 88 Hospital Road Kelaniya,Hospital Road,Residential,22.00,6.00,LOCAL_GOVERNMENT,32000.00,PAID,Ward 14,Kelaniya,Sithara Wickramasinghe,198489012345,0710123456
+KEL/RES/015/2024,No. 41 Katunayake Road Kelaniya,Katunayake Road,Residential,13.25,5.00,RDA,17500.00,PAID,Ward 15,Kelaniya,Buddhika Jayasena,199090123456,0721234567

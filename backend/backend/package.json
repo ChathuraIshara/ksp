@@ -1,0 +1,35 @@
+{
+  "name": "pradeshiya-sabha-backend",
+  "version": "1.0.0",
+  "description": "Pradeshiya Sabha Planning Approval System Backend",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "seed": "node seeders/seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "exceljs": "^4.4.0",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.6.5",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.7",
+    "otplib": "^12.0.1",
+    "pdfkit": "^0.14.0",
+    "qrcode": "^1.5.3",
+    "sequelize": "^6.35.1",
+    "uuid": "^9.0.1",
+    "socket.io": "^4.7.2",
+    "axios": "^1.7.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

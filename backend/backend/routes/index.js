@@ -1,0 +1,47 @@
+const router = require('express').Router();
+
+router.use('/auth',                   require('./auth.routes'));
+router.use('/users',                  require('./user.routes'));
+router.use('/applicants',             require('./applicant.routes'));
+router.use('/officers',               require('./officer.routes'));
+router.use('/admin',                  require('./admin.routes'));
+router.use('/tax-records',            require('./assessmentTax.routes'));
+router.use('/tax-owners',             require('./taxOwner.routes'));
+router.use('/tax-owner-history',      require('./taxOwnerHistory.routes'));
+router.use('/tax-import',             require('./taxImport.routes'));
+router.use('/plan-types',             require('./planType.routes'));
+router.use('/fee-configs',            require('./feeConfiguration.routes'));
+router.use('/fee-configurations',     require('./feeConfiguration.routes')); // alias used by frontend
+router.use('/applications',           require('./application.routes'));
+router.use('/documents',              require('./document.routes'));
+router.use('/pso-verification',       require('./psoVerification.routes'));
+router.use('/queues',                 require('./queue.routes'));
+router.use('/complaints',             require('./complaint.routes'));
+router.use('/payments',               require('./payment.routes'));
+router.use('/tasks',                  require('./taskAssignment.routes'));
+router.use('/inspections',            require('./inspection.routes'));
+router.use('/inspection-minutes',     require('./inspectionMinute.routes'));
+router.use('/fines',                  require('./fine.routes'));
+router.use('/minutes',                require('./minute.routes'));
+router.use('/messages',               require('./message.routes'));
+router.use('/external-approvals',     require('./externalApproval.routes'));
+router.use('/agreements',             require('./agreement.routes'));
+router.use('/pc-meetings',            require('./pcMeeting.routes'));
+router.use('/pc-attendees',           require('./pcAttendee.routes'));
+router.use('/decisions',              require('./decision.routes'));
+router.use('/approval-certificates',  require('./approvalCertificate.routes'));
+router.use('/print-logs',             require('./printLog.routes'));
+router.use('/extensions',             require('./timeExtension.routes'));
+router.use('/appeals',                require('./appeal.routes'));
+router.use('/cor-applications',       require('./corApplication.routes'));
+router.use('/final-inspections',      require('./finalInspection.routes'));
+router.use('/cor-certificates',       require('./corCertificate.routes'));
+router.use('/tracking',               require('./tracking.routes'));
+router.use('/notifications',          require('./notification.routes'));
+router.use('/audit-logs',             require('./auditLog.routes'));
+router.use('/password-change-requests', require('./passwordChangeRequest.routes'));
+router.use('/files',                  require('./file.routes'));
+router.use('/phi',                    require('./phi.routes'));
+router.use('/to-availability',        require('./toAvailability.routes'));
+
+module.exports = router;
