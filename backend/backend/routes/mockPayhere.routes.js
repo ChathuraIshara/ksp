@@ -46,7 +46,7 @@ const computeIpnSig = (orderId, amount, statusCode) => {
     .digest('hex').toUpperCase();
 };
 
-// ── GET /mock-payhere/checkout  (form POST lands here) ────────────────────────
+// ── POST /mock-payhere/checkout  (form POST lands here) ────────────────────────
 // PayHere checkout is actually a POST, not a GET.
 // The frontend submits a form to PAYHERE_URL, which is this endpoint.
 router.post('/checkout', (req, res) => {
@@ -243,10 +243,10 @@ router.post('/checkout', (req, res) => {
       <input type="text" class="mock-filled" value="${email || ''}" readonly />
     </div>
     <div class="btns">
-      <button class="btn-pay" id="payBtn" onclick="doPayment()">
+      <button class="btn-pay" id="payBtn">
         🔒 Pay Rs. ${Number(amount).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
       </button>
-      <button class="btn-cancel" onclick="doCancel()">Cancel Payment</button>
+      <button class="btn-cancel" id="cancelBtn">Cancel Payment</button>
     </div>
     <div class="secure-note">🔒 256-bit SSL encryption &nbsp;|&nbsp; PCI DSS Compliant</div>
   </div>
@@ -258,7 +258,8 @@ router.post('/checkout', (req, res) => {
   </div>
 </div>
 
-<script>
+<script nonce="${res.locals.nonce}">
+document.addEventListener('DOMContentLoaded', function() {
   const ORDER_ID    = ${JSON.stringify(order_id)};
   const AMOUNT      = ${JSON.stringify(amount)};
   const RETURN_URL  = ${JSON.stringify(return_url || 'http://localhost:3000/app/dashboard')};
@@ -270,7 +271,6 @@ router.post('/checkout', (req, res) => {
     document.getElementById('processing').style.display = 'block';
 
     try {
-      // Ask the backend to fire the IPN webhook and complete the payment
       const resp = await fetch('/mock-payhere/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -279,31 +279,48 @@ router.post('/checkout', (req, res) => {
       const data = await resp.json();
 
       if (data.success) {
-        document.getElementById('processing').innerHTML =
+        const proc = document.getElementById('processing');
+        proc.innerHTML =
           '<div class="success-icon">✅</div>' +
           '<p style="color:#166534;font-weight:700;font-size:18px">Payment Successful!</p>' +
           '<p style="color:#64748b;font-size:13px;margin-top:6px">Receipt: ' + data.receipt_number + '</p>' +
           '<p style="color:#64748b;font-size:12px;margin-top:4px">Redirecting back to the application...</p>';
         setTimeout(() => { window.location.href = RETURN_URL + '?status=success&order_id=' + ORDER_ID; }, 2000);
       } else {
-        document.getElementById('processing').innerHTML =
+        const proc = document.getElementById('processing');
+        proc.innerHTML =
           '<div style="font-size:40px">❌</div>' +
           '<p style="color:#991b1b;font-weight:700">Payment Failed</p>' +
-          '<p style="color:#64748b;font-size:13px;margin-top:6px">' + (data.message || 'Unknown error') + '</p>' +
-          '<button class="btn-cancel" style="margin-top:1rem" onclick="location.reload()">Try Again</button>';
+          '<p style="color:#64748b;font-size:13px;margin-top:6px">' + (data.message || 'Unknown error') + '</p>';
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'btn-cancel';
+        retryBtn.style.marginTop = '1rem';
+        retryBtn.textContent = 'Try Again';
+        retryBtn.addEventListener('click', () => location.reload());
+        proc.appendChild(retryBtn);
       }
     } catch (err) {
-      document.getElementById('processing').innerHTML =
+      const proc = document.getElementById('processing');
+      proc.innerHTML =
         '<div style="font-size:40px">⚠️</div>' +
         '<p style="color:#92400e;font-weight:700">Connection Error</p>' +
-        '<p style="color:#64748b;font-size:13px;margin-top:6px">' + err.message + '</p>' +
-        '<button class="btn-cancel" style="margin-top:1rem" onclick="location.reload()">Try Again</button>';
+        '<p style="color:#64748b;font-size:13px;margin-top:6px">' + err.message + '</p>';
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'btn-cancel';
+      retryBtn.style.marginTop = '1rem';
+      retryBtn.textContent = 'Try Again';
+      retryBtn.addEventListener('click', () => location.reload());
+      proc.appendChild(retryBtn);
     }
   }
 
   function doCancel() {
     window.location.href = CANCEL_URL + '?status=cancelled&order_id=' + ORDER_ID;
   }
+
+  document.getElementById('payBtn').addEventListener('click', doPayment);
+  document.getElementById('cancelBtn').addEventListener('click', doCancel);
+});
 </script>
 </body>
 </html>`);
