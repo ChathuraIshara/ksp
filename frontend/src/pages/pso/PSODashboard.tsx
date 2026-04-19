@@ -416,7 +416,8 @@ const VerifyModal: React.FC<{ open: boolean; onClose: () => void; app: any; toas
       toast('Application verified and escalated to SW. Reference number generated.', 'success')
       onRefresh()
       onClose()
-    } catch (e) { toast(getErrorMsg(e), 'error') }
+    } catch (e) { //
+      toast(getErrorMsg(e), 'error') }
     finally { setLoading(false) }
   }
 

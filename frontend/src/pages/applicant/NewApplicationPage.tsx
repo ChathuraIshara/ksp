@@ -470,14 +470,22 @@ const DetailsStep: React.FC<{
         <div className="p-4 border bg-slate-50 rounded-xl border-slate-200">
           <h3 className="mb-3 font-semibold text-slate-800">Part II — Development Site</h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Assessment Tax Number">
+            <Field label="Assessment Tax Number" required error={errors.tax_number?.message as string}>
               <div className="flex gap-2">
-                <input
-                  className="form-input"
-                  placeholder="e.g. KEL/001/2024"
-                  {...register('tax_number')}
-                  onBlur={e => lookupTax(e.target.value)}
-                />
+                {(() => {
+                  const taxNumberField = register('tax_number', { required: 'Assessment Tax Number is required' })
+                  return (
+                    <input
+                      className="form-input"
+                      placeholder="e.g. KEL/001/2024"
+                      {...taxNumberField}
+                      onBlur={e => {
+                        taxNumberField.onBlur(e)
+                        lookupTax(e.target.value)
+                      }}
+                    />
+                  )
+                })()}
                 {taxLoading && <Spinner size="sm" className="mt-2 text-ps-600" />}
               </div>
               {taxInfo && (
