@@ -15,14 +15,33 @@ exports.createTask = async (req, res, next) => {
     if (!reference_number) {
       return badRequest(res, 'reference_number is required and could not be resolved from application_id');
     }
-    const snapshot = await Officer.findByPk(req.body.assigned_to, { attributes: ['officer_id','full_name'] });
+    const snapshot = await Officer.findByPk(req.body.assigned_to, { attributes: ['officer_id','full_name','user_id'] });
+    if (!snapshot) return badRequest(res, 'Assigned TO does not exist');
+
     const task = await TaskAssignment.create({
       ...req.body,
       reference_number,
       assigned_by: req.user.user_id,
       to_workload_snapshot: snapshot,
     });
-    await notifEvents.emit('TASK_ASSIGNED', { referenceNumber: task.reference_number, toId: task.assigned_to });
+
+    if (req.body.application_id) {
+      await Application.update(
+        { status: 'ASSIGNED_TO_TO' },
+        { where: { application_id: req.body.application_id } }
+      );
+    }
+
+    try {
+      await notifEvents.emit('TASK_ASSIGNED', {
+        referenceNumber: task.reference_number,
+        toId: snapshot.user_id,
+      });
+    } catch (notifyErr) {
+      // Notification failure should not fail task assignment
+      console.error('[TASK_ASSIGNED notification failed]', notifyErr.message);
+    }
+
     return created(res, task);
   } catch (err) { next(err); }
 };

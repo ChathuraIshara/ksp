@@ -12,6 +12,7 @@ const SWDashboard: React.FC = () => {
   const { show: toast, ToastContainer } = useToast()
   const [tab, setTab] = useState('workload')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [recentlyAssignedIds, setRecentlyAssignedIds] = useState<string[]>([])
 
   const { data: workloadData, isLoading: workloadLoading } = useQuery('sw-dashboard', taskApi.swDashboard)
   console.log("toworkload", workloadData?.data)
@@ -31,7 +32,17 @@ const SWDashboard: React.FC = () => {
     () => applicationApi.listAll({ limit: 200 })
   )
   const allForSW: any[] = pendingTOData?.data?.data ?? pendingTOData?.data ?? []
-  const pendingAssignments: any[] = allForSW.filter((a: any) => a?.status === 'ASSIGNED_TO_SW')
+  const serverPendingIds = new Set(
+    allForSW
+      .filter((a: any) => a?.status === 'ASSIGNED_TO_SW')
+      .map((a: any) => a?.application_id)
+  )
+  const pendingAssignments: any[] = allForSW.filter((a: any) => a?.status === 'ASSIGNED_TO_SW' && !recentlyAssignedIds.includes(a?.application_id))
+
+  React.useEffect(() => {
+    if (!recentlyAssignedIds.length) return
+    setRecentlyAssignedIds(prev => prev.filter(id => serverPendingIds.has(id)))
+  }, [serverPendingIds, recentlyAssignedIds.length])
 
   const tabs = [
     { label: 'TO Workload',     value: 'workload',    count: toWorkload.length },
@@ -63,7 +74,13 @@ const SWDashboard: React.FC = () => {
         <PendingReviewsSection apps={pendingReviews} loading={pendingLoading} toast={toast} />
       )}
       {tab === 'assignments' && (
-        <PendingTOAssignSection apps={pendingAssignments} toast={toast} />
+        <PendingTOAssignSection
+          apps={pendingAssignments}
+          toast={toast}
+          onAssigned={(appId: string) => {
+            setRecentlyAssignedIds(prev => (prev.includes(appId) ? prev : [...prev, appId]))
+          }}
+        />
       )}
 
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
@@ -356,7 +373,7 @@ const SWReviewModal: React.FC<{ open: boolean; onClose: () => void; app: any; to
 }
 
 // ── Pending TO Assignments ────────────────────────────────────────────────────
-const PendingTOAssignSection: React.FC<{ apps: any[]; toast: Function }> = ({ apps, toast }) => {
+const PendingTOAssignSection: React.FC<{ apps: any[]; toast: Function; onAssigned: (appId: string) => void }> = ({ apps, toast, onAssigned }) => {
   const qc = useQueryClient()
   if (!apps.length) return <EmptyState title="No pending TO assignments" icon={<span className="text-5xl">👤</span>} />
 
@@ -379,7 +396,16 @@ const PendingTOAssignSection: React.FC<{ apps: any[]; toast: Function }> = ({ ap
         </thead>
         <tbody>
           {apps.map(app => (
-            <TOAssignRow key={app.application_id} app={app} toast={toast} onRefresh={() => qc.invalidateQueries()} />
+            <TOAssignRow
+              key={app.application_id}
+              app={app}
+              toast={toast}
+              onAssigned={onAssigned}
+              onRefresh={() => {
+                qc.invalidateQueries('sw-pending-to')
+                qc.invalidateQueries('sw-dashboard')
+              }}
+            />
           ))}
         </tbody>
       </table>
@@ -387,7 +413,7 @@ const PendingTOAssignSection: React.FC<{ apps: any[]; toast: Function }> = ({ ap
   )
 }
 
-const TOAssignRow: React.FC<{ app: any; toast: Function; onRefresh: () => void }> = ({ app, toast, onRefresh }) => {
+const TOAssignRow: React.FC<{ app: any; toast: Function; onRefresh: () => void; onAssigned: (appId: string) => void }> = ({ app, toast, onRefresh, onAssigned }) => {
   const [selectedTO, setSelectedTO] = useState('')
   const [assigning, setAssigning]   = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -435,11 +461,12 @@ const TOAssignRow: React.FC<{ app: any; toast: Function; onRefresh: () => void }
         task_type: 'TO_INSPECTION',
         priority: app.has_complaint ? 'URGENT' : 'NORMAL',
       })
+      onAssigned(app.application_id)
       toast(`Assigned to TO. Applicant notified with reference number.`, 'success')
       onRefresh()
     } catch (e) {
-      // toast(getErrorMsg(e), 'error') 
-      }
+      toast(getErrorMsg(e), 'error') 
+    }
     finally { setAssigning(false) }
   }
 
