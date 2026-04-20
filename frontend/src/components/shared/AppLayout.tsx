@@ -98,7 +98,6 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
   ADMIN: [
     { label: 'Dashboard',         path: '/app/admin/dashboard', icon: '⊞' },
     { label: 'Officers',          path: '/app/admin/officers',  icon: '👤' },
-    { label: 'Applications',      path: '/app/admin/applications', icon: '📋' },
     { label: 'Fee Configuration', path: '/app/admin/fees',      icon: '💰' },
     { label: 'Tax Records Import', path: '/app/admin/import',    icon: '📥' },
     { label: 'Reports',           path: '/app/admin/reports',   icon: '📊' },
@@ -136,15 +135,15 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {/* Logo */}
         <div className="px-4 py-5 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gold-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-ps-950 font-bold text-sm font-display">KPS</span>
+            <div className="flex items-center justify-center flex-shrink-0 w-9 h-9 rounded-xl bg-gold-500">
+              <span className="text-sm font-bold text-ps-950 font-display">KPS</span>
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <div className="text-white font-bold text-sm font-display leading-tight">
+                <div className="text-sm font-bold leading-tight text-white font-display">
                   Kelaniya PS
                 </div>
-                <div className="text-white/50 text-xs">Planning System</div>
+                <div className="text-xs text-white/50">Planning System</div>
               </div>
             )}
           </div>
@@ -153,9 +152,9 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {/* Role badge */}
         {!collapsed && (
           <div className="px-4 py-3 border-b border-white/10">
-            <div className="text-white/40 text-xs uppercase tracking-wider mb-1">Signed in as</div>
+            <div className="mb-1 text-xs tracking-wider uppercase text-white/40">Signed in as</div>
             <div className="flex items-center justify-between gap-2">
-              <div className="text-white text-sm font-semibold truncate">{user.full_name || user.email}</div>
+              <div className="text-sm font-semibold text-white truncate">{user.full_name || user.email}</div>
               <ConnectionIndicator />
             </div>
             <div className="text-gold-400 text-xs font-medium mt-0.5">{ROLE_LABEL[user.role]}</div>
@@ -171,8 +170,8 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               className={({ isActive }) => cx('nav-item', isActive && 'active')}
               title={collapsed ? item.label : undefined}
             >
-              <span className="text-base w-5 text-center flex-shrink-0">{item.icon}</span>
-              {!collapsed && <span className="truncate text-sm">{item.label}</span>}
+              <span className="flex-shrink-0 w-5 text-base text-center">{item.icon}</span>
+              {!collapsed && <span className="text-sm truncate">{item.label}</span>}
               {!collapsed && item.badge !== undefined && item.badge > 0 && (
                 <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
                   {item.badge}
@@ -186,20 +185,20 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className="px-2 py-4 border-t border-white/10 space-y-0.5">
           <button
             onClick={() => setCollapsed(c => !c)}
-            className="nav-item w-full"
+            className="w-full nav-item"
           >
-            <span className="text-base w-5 text-center">{collapsed ? '→' : '←'}</span>
+            <span className="w-5 text-base text-center">{collapsed ? '→' : '←'}</span>
             {!collapsed && <span className="text-sm">Collapse</span>}
           </button>
           <button
             onClick={() => setChangePwOpen(true)}
-            className="nav-item w-full text-slate-300 hover:text-white hover:bg-white/10"
+            className="w-full nav-item text-slate-300 hover:text-white hover:bg-white/10"
           >
-            <span className="text-base w-5 text-center">🔑</span>
+            <span className="w-5 text-base text-center">🔑</span>
             {!collapsed && <span className="text-sm">Change Password</span>}
           </button>
-          <button onClick={handleLogout} className="nav-item w-full text-red-300 hover:text-red-200 hover:bg-red-500/10">
-            <span className="text-base w-5 text-center">⏻</span>
+          <button onClick={handleLogout} className="w-full text-red-300 nav-item hover:text-red-200 hover:bg-red-500/10">
+            <span className="w-5 text-base text-center">⏻</span>
             {!collapsed && <span className="text-sm">Log out</span>}
           </button>
         </div>
@@ -210,15 +209,15 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {/* Topbar */}
         <header className="topbar">
           <div className="flex items-center gap-2">
-            <span className="text-slate-400 text-sm">
+            <span className="text-sm text-slate-400">
               {ROLE_LABEL[user.role]} Dashboard
             </span>
           </div>
           <div className="flex items-center gap-3">
             <NotificationBell />
             <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-ps-800 flex items-center justify-center">
-                <span className="text-white text-xs font-bold">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-ps-800">
+                <span className="text-xs font-bold text-white">
                   {(user.full_name || user.email).charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -314,16 +313,16 @@ const PasswordChangeModal: React.FC<{
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && handleClose()}>
-      <div className="modal-box max-w-md w-full">
+      <div className="w-full max-w-md modal-box">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-ps-100 flex items-center justify-center">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-ps-100">
               <span className="text-lg">🔑</span>
             </div>
             <h2 className="text-base font-bold text-slate-900">Change Password</h2>
           </div>
-          <button onClick={handleClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+          <button onClick={handleClose} className="text-xl leading-none text-slate-400 hover:text-slate-600">×</button>
         </div>
 
         <div className="p-6 space-y-5">
@@ -361,7 +360,7 @@ const PasswordChangeModal: React.FC<{
           {/* Form — only show if no pending request and not just submitted */}
           {!hasPending && !done && (
             <>
-              <div className="alert-info text-xs">
+              <div className="text-xs alert-info">
                 <span>ℹ️</span>
                 <span>
                   Password changes require admin approval for security.
@@ -377,14 +376,14 @@ const PasswordChangeModal: React.FC<{
                       type={showPw ? 'text' : 'password'}
                       value={newPw}
                       onChange={e => setNewPw(e.target.value)}
-                      className="form-input pr-10"
+                      className="pr-10 form-input"
                       placeholder="At least 8 chars, 1 number, 1 uppercase"
                       autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPw(s => !s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm"
+                      className="absolute text-sm -translate-y-1/2 right-3 top-1/2 text-slate-400 hover:text-slate-600"
                       aria-label={showPw ? 'Hide password' : 'Show password'}
                     >
                       {showPw ? '🙈' : '👁️'}
@@ -440,10 +439,10 @@ const PasswordChangeModal: React.FC<{
                     onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                   />
                   {confirmPw && newPw !== confirmPw && (
-                    <p className="text-xs text-red-500 mt-1">✕ Passwords do not match</p>
+                    <p className="mt-1 text-xs text-red-500">✕ Passwords do not match</p>
                   )}
                   {confirmPw && newPw === confirmPw && newPw.length >= 8 && (
-                    <p className="text-xs text-emerald-600 mt-1">✓ Passwords match</p>
+                    <p className="mt-1 text-xs text-emerald-600">✓ Passwords match</p>
                   )}
                 </div>
               </div>
